@@ -3,20 +3,21 @@
 `jam:pub-sub` brings two key features to Meteor apps:
 
 1. **Method-based publish / subscribe**
+2. **Subscription caching**
 
+**Important**: This package expects that you'll use the promise-based `*Async` Meteor collection methods introduced in `v2.8.1`.
+
+## Method-based publish / subscribe
 Meteor's traditional `publish / subscribe` is truly wonderful. However, there is a cost to pushing updates reactively to all connected clients – it's resource intensive and will eventually place limits on your ability to scale your app.
 
 One way to reduce the need for the traditional `publish / subscribe` is to fetch the data via a `Meteor Method` but there's a big problem here: the data **won't** be automatically merged into Minimongo and you completely lose Meteor's magical reactivity. Minimongo is great to work with and makes things easy as the source of truth on the client. Without it, you'll need to create your own stores on the client and essentially duplicate Minimongo.
 
 With `jam:pub-sub`, you use `Meteor.publish.once` and the same `Meteor.subscribe` to have the data fetched via a Meteor Method and merged automatically in Minimongo so you can work with it as you're accustomed to. It also automatically preserves reactivity for the user when they make database writes. Note that these writes will **not** be broadcast in realtime to all connected clients by design but in many cases you might find that you don't need that feature of Meteor's traditional `publish / subscribe`.
 
-2. **Subscription caching**
-
+## Subscription caching
 Normally, when a user moves between routes or components, the subscriptions will be stopped. When a user is navigating back and forth in your app, each time will result in a re-subscribe which means more spinners, a slower experience, and is generally a waste.
 
 By caching your subscriptions, you can create a better user experience for your users. Since the subscription itself is being cached, the data in Minimongo will be updated in the background until the `cacheDuration` expires for that subscription at which point it will be stopped and the data will be removed from Minimongo as expected.
-
-**Important**: This package expects that you'll use the promise-based `*Async` Meteor collection methods introduced in `v2.8.1`.
 
 ## Usage
 
@@ -43,7 +44,7 @@ Notes.find().fetch();
 ```
 That's it. By using `Meteor.publish.once`, it will fetch the data initally and automatically merge it into Minimongo. Any database writes to the `Notes` collection will be sent reactively to the user that made the write.
 
-**Important:** when naming your publications be sure to include the collection name(s) in it. This is generally common practice and this package relies on that convention.
+**Important**: when naming your publications be sure to include the collection name(s) in it. This is generally common practice and this package relies on that convention.
 
 It works just as you'd expect for an array of cursors:
 
@@ -78,7 +79,7 @@ Meteor.publish.once('notes.all', function() {
 })
 ```
 
-### Subscription caching
+### Turn on subscription caching
 With `jam:pub-sub`, you can enable subscription caching globally or at a per-subscription level. Subscription caching is turned off by default to preserve the current behavior in Meteor.
 
 To enable subscription caching globally for every subscription:
@@ -107,9 +108,9 @@ Meteor.subscribe('todos.single', _id, { cacheDuration: 30 }) // caches for 30 se
 Meteor.subscribe('notes.all', { cache: true }) // turns caching on, overriding the global default, and uses the global default cacheDuration
 ```
 
-`Note:` the rest of the [Meteor.subscribe](https://docs.meteor.com/api/pubsub.html#Meteor-subscribe) API (e.g. `onStop`, `onReady`) works just as you'd expect.
+`Note`: the rest of the [Meteor.subscribe](https://docs.meteor.com/api/pubsub.html#Meteor-subscribe) API (e.g. `onStop`, `onReady`) works just as you'd expect.
 
-`Note:` Because the data will remain in Minimongo while the subscription is cached, you should be mindful of your Minimongo `.find` selectors. Be sure to use specific selectors to `.find` the data you need for that particular subscription. This is generally considered [best practice](https://guide.meteor.com/data-loading#fetching) so this is mainly a helpful reminder.
+`Note`: Because the data will remain in Minimongo while the subscription is cached, you should be mindful of your Minimongo `.find` selectors. Be sure to use specific selectors to `.find` the data you need for that particular subscription. This is generally considered [best practice](https://guide.meteor.com/data-loading#fetching) so this is mainly a helpful reminder.
 
 ### Clearing the cache
 Each individual subcription will be automatically removed from the cache when its `cacheDuration` elapses.
