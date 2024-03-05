@@ -1,0 +1,33 @@
+
+export declare function publishOnce(name: string, handler: Function): { [collectionName: string]: object[] };
+
+declare module 'meteor/meteor' {
+  export namespace Meteor {
+    /**
+     * @summary Subscribe to a record set. Returns a handle that provides `stop()` and `ready()` methods.
+     * @locus Client
+     * @param {String} name Name of the subscription. Matches the name of the server's `publish()` call.
+     * @param {EJSONable} [arg1,arg2...] Optional arguments passed to publisher function on server.
+     * @param {Object|Function} [options] Optional. May include `onStop`, `onReady`, `cache`, and `cacheDuration`. If there is an error, it is passed as an argument to `onStop`. If a function is passed instead of an object, it is interpreted as an `onReady` callback.
+     * @param {Function} [options.onStop] Optional. Called with no arguments when the subscription is stopped.
+     * @param {Function} [options.onReady] Optional. Called with no arguments when the subscription is ready.
+     * @param {Boolean} [options.cache] Optional. If true, the subscription will be cached. If false, it will not be cached. If not provided, the PubSub global config value will be used.
+     * @param {Number} [options.cacheDuration] Optional. The duration in seconds for which the subscription will be cached. If not provided, the PubSub global config value will be used.
+     * @returns {Meteor.SubscriptionHandle} A subscription handle that provides `stop()` and `ready()` methods.
+     */
+    function subscribe(name: string, ...args: any[]): Meteor.SubscriptionHandle;
+
+    export namespace publish {
+      /**
+       * Publishes a record set once.
+       * @param {string} name - The name of the event to publish.
+       * @param {Function} handler - The function called on the server each time a client subscribes.
+       * @returns {Object.<string, Array.<Object>>} An object containing arrays of documents for each collection. These will be automatically merged into Minimongo.
+       */
+      export const once: typeof publishOnce;
+    }
+  }
+}
+
+
+
