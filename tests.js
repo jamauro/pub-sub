@@ -1,7 +1,7 @@
 import { Tinytest } from 'meteor/tinytest';
 import { Mongo } from 'meteor/mongo';
 import { Tracker } from 'meteor/tracker';
-import { merge } from './lib/utils-client';
+import { merge, extractSubscribeArguments } from './lib/utils-client';
 import { subsCache } from './lib/subs-cache';
 import { PubSub } from 'meteor/jam:pub-sub';
 const _merge = require('lodash/merge');
@@ -89,6 +89,10 @@ if (Meteor.isServer) {
     return Notes.find();
   });
 
+  Meteor.publish('notes.filter', function(filter) {
+    return Notes.find(filter);
+  });
+
   Meteor.publish.once('things.all', function() {
     return Things.find();
   });
@@ -113,8 +117,6 @@ Meteor.methods({ reset, resetNotes, resetItems, insertThing, insertItem });
 
 if (Meteor.isClient) {
   Tinytest.addAsync('subscribe - regular publication successful', async (test) => {
-    await Meteor.callAsync('resetNotes');
-
     let sub;
     let notes;
     Tracker.autorun(computation => {
@@ -131,8 +133,6 @@ if (Meteor.isClient) {
   });
 
   Tinytest.addAsync('subscribe - .once successful', async (test) => {
-    await Meteor.callAsync('reset');
-
     let sub;
     Tracker.autorun(() => {
       sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
@@ -150,9 +150,6 @@ if (Meteor.isClient) {
   });
 
   Tinytest.addAsync('subscribe - .once with multiple collections successful', async (test) => {
-    await Meteor.callAsync('resetNotes');
-    await Meteor.callAsync('resetItems');
-
     let sub;
     let notes;
     Tracker.autorun(computation => {
@@ -171,8 +168,6 @@ if (Meteor.isClient) {
   });
 
   Tinytest.addAsync('cache - regular pubsub -  succesful', async (test) => {
-    await Meteor.callAsync('resetNotes');
-
     Tracker.autorun(computation => {
       const sub = Meteor.subscribe('notes.all', {cacheDuration: 0.5});
       if (sub.ready()) {
@@ -184,6 +179,44 @@ if (Meteor.isClient) {
     await wait(200);
     const notes = Notes.find().fetch();
     test.equal(notes.length, 2);
+
+    await wait(500);
+    const notesLater = Notes.find().fetch();
+    test.equal(notesLater.length, 0);
+  });
+
+  Tinytest.addAsync('cache - regular pubsub -  with filter', async (test) => {
+    Tracker.autorun(computation => {
+      const sub = Meteor.subscribe('notes.filter', { title: 'stuff' }, {cacheDuration: 0.5});
+      if (sub.ready()) {
+        computation.stop();
+        sub.stop();
+      }
+    });
+
+    await wait(200);
+    const notes = Notes.find().fetch();
+    test.equal(notes.length, 1);
+    test.equal(notes[0].title, 'stuff')
+
+    await wait(500);
+    const notesLater = Notes.find().fetch();
+    test.equal(notesLater.length, 0);
+  });
+
+  Tinytest.addAsync('cache - .once -  with filter', async (test) => {
+    Tracker.autorun(computation => {
+      const sub = Meteor.subscribe('notes.filter', { title: 'stuff' }, {cacheDuration: 0.5});
+      if (sub.ready()) {
+        computation.stop();
+        sub.stop();
+      }
+    });
+
+    await wait(200);
+    const notes = Notes.find().fetch();
+    test.equal(notes.length, 1);
+    test.equal(notes[0].title, 'stuff')
 
     await wait(500);
     const notesLater = Notes.find().fetch();
@@ -693,6 +726,66 @@ if (Meteor.isClient) {
 
     test.equal(PubSub.config.cache, true);
     test.equal(PubSub.config.cacheDuration, 120);
+  });
+
+  Tinytest.addAsync('extract args - simple', async (test) => {
+    const args = [10]
+    const { args: subscribeArgs, onStop, onReady, cache, cacheDuration } = extractSubscribeArguments(args);
+    test.equal(subscribeArgs, [10]);
+    test.equal(onStop, undefined)
+    test.equal(onReady, undefined)
+    test.equal(cache, undefined)
+    test.equal(cacheDuration, undefined)
+  });
+
+  Tinytest.addAsync('extract args - object', async (test) => {
+    const args = [{num: 10}]
+    const { args: subscribeArgs, onStop, onReady, cache, cacheDuration } = extractSubscribeArguments(args);
+    test.equal(subscribeArgs, args);
+    test.equal(onStop, undefined)
+    test.equal(onReady, undefined)
+    test.equal(cache, undefined)
+    test.equal(cacheDuration, undefined)
+  });
+
+  Tinytest.addAsync('extract args - cache only', async (test) => {
+    const args = [{num: 10}, { cache: true }]
+    const { args: subscribeArgs, onStop, onReady, cache, cacheDuration } = extractSubscribeArguments(args);
+    test.equal(subscribeArgs, [{num: 10}]);
+    test.equal(onStop, undefined)
+    test.equal(onReady, undefined)
+    test.equal(cache, true)
+    test.equal(cacheDuration, undefined)
+  });
+
+  Tinytest.addAsync('extract args - cacheDuration only', async (test) => {
+    const args = [{num: 10}, { cacheDuration: 3 }]
+    const { args: subscribeArgs, onStop, onReady, cache, cacheDuration } = extractSubscribeArguments(args);
+    test.equal(subscribeArgs, [{num: 10}]);
+    test.equal(onStop, undefined)
+    test.equal(onReady, undefined)
+    test.equal(cache, undefined)
+    test.equal(cacheDuration, 3)
+  });
+
+  Tinytest.addAsync('extract args - all the things', async (test) => {
+    const args = [{num: 10}, { onStop: () => {}, onReady: () => {}, cache: true, cacheDuration: 3 }]
+    const { args: subscribeArgs, onStop, onReady, cache, cacheDuration } = extractSubscribeArguments(args);
+    test.equal(subscribeArgs, [{num: 10}]);
+    test.equal(typeof onStop, 'function')
+    test.equal(typeof onReady, 'function')
+    test.equal(cache, true)
+    test.equal(cacheDuration, 3)
+  });
+
+  Tinytest.addAsync('extract args - multi args', async (test) => {
+    const args = [{num: 10}, {_id: 1}, { onStop: () => {}, onReady: () => {}, cache: false, cacheDuration: 5 }]
+    const { args: subscribeArgs, onStop, onReady, cache, cacheDuration } = extractSubscribeArguments(args);
+    test.equal(subscribeArgs, [{num: 10}, {_id: 1}]);
+    test.equal(typeof onStop, 'function')
+    test.equal(typeof onReady, 'function')
+    test.equal(cache, false)
+    test.equal(cacheDuration, 5)
   });
 }
 
