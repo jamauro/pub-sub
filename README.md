@@ -44,16 +44,16 @@ Notes.find().fetch();
 ```
 That's it. By using `Meteor.publish.once`, it will fetch the data initally and automatically merge it into Minimongo. Any database writes to the `Notes` collection will be sent reactively to the user that made the write.
 
-**Important**: when naming your publications be sure to include the collection name(s) in it. This is generally common practice and this package relies on that convention. If you don't do this, you'll likely find that data is not removed from Minimongo as you'd expect when the subscription stops. For example:
+**Important**: when naming your publications be sure to include the collection name(s) in it. This is generally common practice and this package relies on that convention. If you don't do this and you're caching the subscription, the data published with `Meteor.publish.once` might not be removed from Minimongo as expected when the subscription stops. It's recommended that you follow this convention for all publications including `Meteor.publish` because you can have a mix of `Meteor.publish` and `Meteor.publish.once` for a collection if you'd like. Here are some examples of including the collection name in the publication name:
 ```js
 // the name you assign inside Mongo.Collection should be in your publication name(s), in this example 'notes'
 const Notes = new Mongo.Collection('notes')
 
 // as long as it appears somewhere in your publication name, you're good to go. here are some examples:
-Meteor.publish('notes');
-Meteor.publish('notes.all');
-Meteor.publish('notes/single');
-Meteor.publish('somethingAndNotes');
+Meteor.publish.once('notes');
+Meteor.publish.once('notes.all');
+Meteor.publish.once('notes/single');
+Meteor.publish.once('somethingAndNotes');
 ```
 
 It also works just as you'd expect for an array of cursors:
