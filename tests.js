@@ -116,7 +116,55 @@ if (Meteor.isServer) {
 Meteor.methods({ reset, resetNotes, resetItems, insertThing, insertItem });
 
 if (Meteor.isClient) {
-  Tinytest.addAsync('subscribe - regular publication successful', async (test) => {
+  Tinytest.addAsync('subscribe - regular publication - standard succesful', async (test) => {
+    PubSub.configure({
+      cache: false
+    });
+
+    let sub;
+    let notes;
+    Tracker.autorun(computation => {
+      sub = Meteor.subscribe('notes.all');
+      if (sub.ready()) {
+        computation.stop();
+        notes = Notes.find().fetch();
+        sub.stop();
+      }
+    });
+
+    await wait(200)
+    test.isTrue(notes.length, 2)
+
+    PubSub.configure({
+      cache: true
+    });
+  });
+
+  Tinytest.addAsync('subscribe - regular publication - onReady', async (test) => {
+    PubSub.configure({
+      cache: false
+    });
+
+    let sub;
+    let notes;
+    Tracker.autorun(computation => {
+      sub = Meteor.subscribe('notes.all', {onReady: () => {}});
+      if (sub.ready()) {
+        computation.stop();
+        notes = Notes.find().fetch();
+        sub.stop();
+      }
+    });
+
+    await wait(200)
+    test.isTrue(notes.length, 2)
+
+    PubSub.configure({
+      cache: true
+    });
+  });
+
+  Tinytest.addAsync('subscribe - regular publication - cacheDuration', async (test) => {
     let sub;
     let notes;
     Tracker.autorun(computation => {
@@ -132,7 +180,7 @@ if (Meteor.isClient) {
     test.isTrue(notes.length, 2)
   });
 
-  Tinytest.addAsync('subscribe - .once successful', async (test) => {
+  Tinytest.addAsync('subscribe - .once - successful', async (test) => {
     let sub;
     Tracker.autorun(() => {
       sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
@@ -149,7 +197,7 @@ if (Meteor.isClient) {
     test.isTrue(things.length, 2)
   });
 
-  Tinytest.addAsync('subscribe - .once with multiple collections successful', async (test) => {
+  Tinytest.addAsync('subscribe - .once - multiple collections successful', async (test) => {
     let sub;
     let notes;
     Tracker.autorun(computation => {

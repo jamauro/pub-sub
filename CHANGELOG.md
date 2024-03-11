@@ -1,3 +1,6 @@
+## 0.1.3
+* fix: pass in `onStop` and `onReady` correctly to appease `audit-argument-checks`
+
 ## 0.1.2
 * fix: extract object subscription arguments correctly
 
