@@ -123,7 +123,7 @@ That's it. By using `Meteor.publish.stream`, any database writes to the `Notes` 
 
 #### Setting the `maxPoolSize` for Change Streams
 `maxPoolSize` defaults to `100` which likely won't need adjusting. However, should you need to adjust it, you can set it in [Meteor.settings](https://docs.meteor.com/api/collections.html#mongo_connection_options_settings) like this:
-```json
+```js
 {
   //...//
   "packages": {
