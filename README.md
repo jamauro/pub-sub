@@ -17,13 +17,14 @@ With `jam:pub-sub`, you use `Meteor.publish.once` and the same `Meteor.subscribe
 
 ## Change Streams-based publish / subscribe
 **`Experimental`**
+
 With `jam:pub-sub` and MongoDB Change Streams, you can preserve Meteor's magical reactivity for all clients while opting out of the traditional `publish / subscribe` and its use of the `oplog`. Use `Meteor.publish.stream` instead of using `Meteor.publish` and subscribe using the same `Meteor.subscribe` on the client.
 
 **Note**: You can mix `Meteor.publish.stream` and `Meteor.publish.once`. In fact, in most cases, you'd likely benefit the most from using `Meteor.publish.once` anywhere you can and using `Meteor.publish.stream` when you really need it.
 
 **Note**: If you decide to entirely opt-out of using the traditional `Meteor.publish`, then you'll also want to disable the `oplog` entirely &mdash; add the `disable-oplog` package with `meteor add disable-oplog`.
 
-At the moment, this feature is considered `experimental`. Based on previous [Change Streams experiments](https://github.com/meteor/meteor/discussions/11842#discussioncomment-4061112) by the Meteor Community, it seems that using Change Streams as a wholesale replacement for the traditional `publish / subscribe` should "just work". However, in practice it may be a "Your Mileage May Vary" type of situation depending on the frequency of writes and connected clients, how you model your data, and how you set up the cursors inside of `Meteor.publish.stream`. With that said, if you're interested in this feature, I'd encourage you to try it out and share your findings.
+At the moment, this feature is considered experimental. Based on previous [Change Streams experiments](https://github.com/meteor/meteor/discussions/11842#discussioncomment-4061112) by the Meteor Community, it seems that using Change Streams as a wholesale replacement for the traditional `publish / subscribe` should "just work". However, in practice it may be a "Your Mileage May Vary" type of situation depending on the frequency of writes and connected clients, how you model your data, and how you set up the cursors inside of `Meteor.publish.stream`. With that said, if you're interested in this feature, I'd encourage you to try it out and share your findings.
 
 ## Subscription caching
 Normally, when a user moves between routes or components, the subscriptions will be stopped. When a user is navigating back and forth in your app, each time will result in a re-subscribe which means more spinners, a slower experience, and is generally a waste.
