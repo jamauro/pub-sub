@@ -1,9 +1,10 @@
 # PubSub
 
-`jam:pub-sub` brings two key features to Meteor apps:
+`jam:pub-sub` brings three key features to Meteor apps:
 
 1. **Method-based publish / subscribe**
-2. **Subscription caching**
+2. **Change Streams-based publish / subscribe**
+3. **Subscription caching**
 
 **Important**: This package expects that you'll use the promise-based `*Async` Meteor collection methods introduced in `v2.8.1`.
 
@@ -13,6 +14,15 @@ Meteor's traditional `publish / subscribe` is truly wonderful. However, there is
 One way to reduce the need for the traditional `publish / subscribe` is to fetch the data via a `Meteor Method` but there's a big problem here: the data **won't** be automatically merged into Minimongo and you completely lose Meteor's magical reactivity. Minimongo is great to work with and makes things easy as the source of truth on the client. Without it, you'll need to create your own stores on the client and essentially duplicate Minimongo.
 
 With `jam:pub-sub`, you use `Meteor.publish.once` and the same `Meteor.subscribe` to have the data fetched via a Meteor Method and merged automatically in Minimongo so you can work with it as you're accustomed to. It also automatically preserves reactivity for the user when they make database writes. Note that these writes will **not** be broadcast in realtime to all connected clients by design but in many cases you might find that you don't need that feature of Meteor's traditional `publish / subscribe`.
+
+## Change Streams-based publish / subscribe
+`Experimental` With `jam:pub-sub` and MongoDB Change Streams, you can preserve Meteor's magical reactivity for all clients while opting out of the traditional `publish / subscribe` and its use of the `oplog`. Use `Meteor.publish.stream` instead of using `Meteor.publish` and subscribe using the same `Meteor.subscribe` on the client.
+
+**Note**: You can mix `Meteor.publish.stream` and `Meteor.publish.once`. In fact, in most cases, you'd likely benefit the most from using `Meteor.publish.once` anywhere you can and using `Meteor.publish.stream` when you really need it.
+
+**Note**: If you decide to entirely opt-out of using the traditional `Meteor.publish`, then you'll also want to disable the `oplog` entirely &mdash; add the `disable-oplog` package with `meteor add disable-oplog`.
+
+At the moment, this feature is considered `experimental`. Based on previous [Change Streams experiments](https://github.com/meteor/meteor/discussions/11842#discussioncomment-4061112) by the Meteor Community, it seems that using Change Streams as a wholesale replacement for the traditional `publish / subscribe` should "just work". However, in practice it may be a "Your Mileage May Vary" type of situation depending on the frequency of writes and connected clients, how you model your data, and how you set up the cursors inside of `Meteor.publish.stream`. With that said, if you're interested in this feature, I'd encourage you to try it out and share your findings.
 
 ## Subscription caching
 Normally, when a user moves between routes or components, the subscriptions will be stopped. When a user is navigating back and forth in your app, each time will result in a re-subscribe which means more spinners, a slower experience, and is generally a waste.
@@ -24,8 +34,8 @@ By caching your subscriptions, you can create a better user experience for your 
 ### Add the package to your app
 `meteor add jam:pub-sub`
 
-### Define a publication using `Meteor.publish.once` and subscribe just as you do currently
-Just like `Meteor.publish`, `Meteor.publish.once` expects you to return a cursor or an array of cursors.
+### Define a Method-based publication
+Define a publication using `Meteor.publish.once` and subscribe just as you do currently. `Meteor.publish.once` expects you to return a cursor or an array of cursors just like `Meteor.publish`.
 
 ```js
 // server
@@ -44,7 +54,7 @@ Notes.find().fetch();
 ```
 That's it. By using `Meteor.publish.once`, it will fetch the data initally and automatically merge it into Minimongo. Any database writes to the `Notes` collection will be sent reactively to the user that made the write.
 
-**Important**: when naming your publications be sure to include the collection name(s) in it. This is generally common practice and this package relies on that convention. If you don't do this and you're caching the subscription, the data published with `Meteor.publish.once` might not be removed from Minimongo as expected when the subscription stops. It's recommended that you follow this convention for all publications including `Meteor.publish` because you can have a mix of `Meteor.publish` and `Meteor.publish.once` for a collection if you'd like. Here are some examples of including the collection name in the publication name:
+**Important**: when naming your publications be sure to include the collection name(s) in it. This is generally common practice and this package relies on that convention. If you don't do this and you're caching the subscription, Minimongo data may be unexpectedly removed or retained when the subscription stops. It's recommended that you follow this convention for all publications including `Meteor.publish`. Here are some examples of including the collection name in the publication name:
 ```js
 // the name you assign inside Mongo.Collection should be in your publication name(s), in this example 'notes'
 const Notes = new Mongo.Collection('notes')
@@ -89,8 +99,44 @@ Meteor.publish.once('notes.all', function() {
 })
 ```
 
+### Define a Change Streams-based publication
+Define a publication using `Meteor.publish.stream` and subscribe just as you do currently. `Meteor.publish.stream` expects you to return a cursor or an array of cursors just like `Meteor.publish`.
+
+```js
+// server
+Meteor.publish.stream('notes.all', function() {
+  return Notes.find();
+});
+```
+
+```js
+// client
+// Since each view layer (Blaze, React, Svelte, Vue, etc) has a different way of using `Tracker.autorun`, I've omitted it for brevity. You'd subscribe just as you do currently in your view layer of choice.
+Meteor.subscribe('notes.all')
+
+// work with the Notes collection in Minimongo as you're accustomed to
+Notes.find().fetch();
+```
+That's it. By using `Meteor.publish.stream`, any database writes to the `Notes` collection will be sent reactively to **all** connected clients just as with `Meteor.publish`.
+
+#### Setting the `maxPoolSize` for Change Streams
+`maxPoolSize` defaults to `100` which likely won't need adjusting. However, should you need to adjust it, you can set it in [Meteor.settings](https://docs.meteor.com/api/collections.html#mongo_connection_options_settings) like this:
+```json
+{
+  //...//
+  "packages": {
+    "mongo": {
+      "options": {
+        "maxPoolSize": 200 // or whatever is appropriate for your application
+      }
+    }
+  }
+  // ... //
+}
+```
+
 ### Turn on subscription caching
-With `jam:pub-sub`, you can enable subscription caching globally or at a per-subscription level. Subscription caching is turned off by default to preserve the current behavior in Meteor.
+With `jam:pub-sub`, you can enable subscription caching globally or at a per-subscription level. Subscription caching is turned off by default to preserve the current behavior in Meteor. Any subscription can be cached, regardless of how it's published.
 
 To enable subscription caching globally for every subscription:
 ```js
@@ -122,7 +168,7 @@ Meteor.subscribe('notes.all', { cache: true }) // turns caching on, overriding t
 
 **Note**: Because the data will remain in Minimongo while the subscription is cached, you should be mindful of your Minimongo `.find` selectors. Be sure to use specific selectors to `.find` the data you need for that particular subscription. This is generally considered [best practice](https://guide.meteor.com/data-loading#fetching) so this is mainly a helpful reminder.
 
-### Clearing the cache
+#### Clearing the cache
 Each individual subcription will be automatically removed from the cache when its `cacheDuration` elapses.
 
 Though it shouldn't be necessary, you can programmatically clear all cached subscriptions:

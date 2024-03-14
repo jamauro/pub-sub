@@ -1,5 +1,6 @@
 
-export declare function publishOnce(name: string, handler: Function): { [collectionName: string]: object[] };
+export declare function publishOnce(name: string, handler: (...args: any[]): { [collectionName: string]: object[] };
+export declare function stream(name: string, handler: (...args: any[]) => void): void;
 
 declare module 'meteor/meteor' {
   export namespace Meteor {
@@ -20,11 +21,20 @@ declare module 'meteor/meteor' {
     export namespace publish {
       /**
        * Publishes a record set once.
-       * @param {string} name - The name of the event to publish.
+       * @param {string} name - The name of the record set.
        * @param {Function} handler - The function called on the server each time a client subscribes.
        * @returns {Object.<string, Array.<Object>>} An object containing arrays of documents for each collection. These will be automatically merged into Minimongo.
        */
       export const once: typeof publishOnce;
+
+      /**
+       * Stream a record set.
+       * @param {string} name - The name of the record set.
+       * @param {Function} handler - The function called on the server each time a client subscribes. Inside the function, `this` is the publish handler object. If the client passed arguments to
+       * `subscribe`, the function is called with the same arguments.
+       * @returns {void}
+       */
+      export const stream: typeof stream;
     }
   }
 }

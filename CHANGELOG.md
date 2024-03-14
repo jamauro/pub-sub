@@ -1,3 +1,8 @@
+## 0.2.0
+* feat: Change Streams-based publications
+* fix: correctly stop cached subscriptions that are subscribed to a `Meteor.publish` publication after initial cache is hit
+* fix: under-the-hood optimizations
+
 ## 0.1.3
 * fix: pass in `onStop` and `onReady` correctly to appease `audit-argument-checks`
 
