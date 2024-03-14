@@ -16,7 +16,8 @@ One way to reduce the need for the traditional `publish / subscribe` is to fetch
 With `jam:pub-sub`, you use `Meteor.publish.once` and the same `Meteor.subscribe` to have the data fetched via a Meteor Method and merged automatically in Minimongo so you can work with it as you're accustomed to. It also automatically preserves reactivity for the user when they make database writes. Note that these writes will **not** be broadcast in realtime to all connected clients by design but in many cases you might find that you don't need that feature of Meteor's traditional `publish / subscribe`.
 
 ## Change Streams-based publish / subscribe
-`Experimental` With `jam:pub-sub` and MongoDB Change Streams, you can preserve Meteor's magical reactivity for all clients while opting out of the traditional `publish / subscribe` and its use of the `oplog`. Use `Meteor.publish.stream` instead of using `Meteor.publish` and subscribe using the same `Meteor.subscribe` on the client.
+**`Experimental`**
+With `jam:pub-sub` and MongoDB Change Streams, you can preserve Meteor's magical reactivity for all clients while opting out of the traditional `publish / subscribe` and its use of the `oplog`. Use `Meteor.publish.stream` instead of using `Meteor.publish` and subscribe using the same `Meteor.subscribe` on the client.
 
 **Note**: You can mix `Meteor.publish.stream` and `Meteor.publish.once`. In fact, in most cases, you'd likely benefit the most from using `Meteor.publish.once` anywhere you can and using `Meteor.publish.stream` when you really need it.
 
