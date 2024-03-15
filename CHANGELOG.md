@@ -1,3 +1,8 @@
+## 0.2.1
+* fix: excluding projections
+* fix: unhandled promise rejection
+* fix: check for duplicate publication name correctly for `Meteor.publish.stream`
+
 ## 0.2.0
 * feat: Change Streams-based publications
 * fix: correctly stop cached subscriptions that are subscribed to a `Meteor.publish` publication after initial cache is hit
