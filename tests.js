@@ -189,11 +189,11 @@ if (Meteor.isClient) {
       if (sub.ready()) {
         computation.stop();
         notes = Notes.find().fetch();
-        sub.stop();
       }
     });
 
     await wait(200)
+    sub.stop();
     test.isTrue(notes.length, 2)
   });
 
@@ -251,7 +251,7 @@ if (Meteor.isClient) {
     test.isTrue(books.length, 2)
   });
 
-   Tinytest.addAsync('subscribe - .stream - successful with insert', async (test) => {
+  Tinytest.addAsync('subscribe - .stream - successful with insert', async (test) => {
     let sub;
     Tracker.autorun(() => {
       sub = Meteor.subscribe('books.all', {cacheDuration: 0.1});
@@ -294,57 +294,62 @@ if (Meteor.isClient) {
   });
 
   Tinytest.addAsync('cache - regular pubsub -  succesful', async (test) => {
+    let sub;
     Tracker.autorun(computation => {
-      const sub = Meteor.subscribe('notes.all', {cacheDuration: 0.5});
+      sub = Meteor.subscribe('notes.all', {cacheDuration: 0.5});
       if (sub.ready()) {
         computation.stop();
-        sub.stop();
       }
     });
 
-    await wait(200);
+    await wait(50);
+    sub.stop();
+
     const notes = Notes.find().fetch();
     test.equal(notes.length, 2);
 
-    await wait(500);
+    await wait(550);
     const notesLater = Notes.find().fetch();
     test.equal(notesLater.length, 0);
   });
 
   Tinytest.addAsync('cache - regular pubsub -  with filter', async (test) => {
+    let sub;
     Tracker.autorun(computation => {
-      const sub = Meteor.subscribe('notes.filter', { title: 'stuff' }, {cacheDuration: 0.5});
+      sub = Meteor.subscribe('notes.filter', { title: 'stuff' }, {cacheDuration: 0.5});
       if (sub.ready()) {
         computation.stop();
-        sub.stop();
       }
     });
 
     await wait(200);
+    sub.stop();
+
     const notes = Notes.find().fetch();
     test.equal(notes.length, 1);
     test.equal(notes[0].title, 'stuff')
 
-    await wait(500);
+    await wait(550);
     const notesLater = Notes.find().fetch();
     test.equal(notesLater.length, 0);
   });
 
   Tinytest.addAsync('cache - .once -  with filter', async (test) => {
+    let sub;
     Tracker.autorun(computation => {
-      const sub = Meteor.subscribe('notes.filter', { title: 'stuff' }, {cacheDuration: 0.5});
+      sub = Meteor.subscribe('notes.filter', { title: 'stuff' }, {cacheDuration: 0.5});
       if (sub.ready()) {
         computation.stop();
-        sub.stop();
       }
     });
 
     await wait(200);
+    sub.stop();
     const notes = Notes.find().fetch();
     test.equal(notes.length, 1);
     test.equal(notes[0].title, 'stuff')
 
-    await wait(500);
+    await wait(550);
     const notesLater = Notes.find().fetch();
     test.equal(notesLater.length, 0);
   });
@@ -353,20 +358,21 @@ if (Meteor.isClient) {
     await wait(101);
     await Meteor.callAsync('resetNotes');
 
-    let notes;
+    let sub;
     Tracker.autorun(computation => {
-      const sub = Meteor.subscribe('notes.all', {cacheDuration: 0.25});
+      sub = Meteor.subscribe('notes.all', {cacheDuration: 0.25});
       if (sub.ready()) {
         computation.stop();
-        notes = Notes.find().fetch();
-        sub.stop();
       }
     });
 
     await wait(50);
+    sub.stop();
+
+    const notes = Notes.find().fetch();
     test.equal(notes.length, 2)
 
-    await wait(251);
+    await wait(300);
     const notesStop = Notes.find().fetch();
     test.equal(notesStop.length, 0)
   });
@@ -609,7 +615,7 @@ if (Meteor.isClient) {
     await Meteor.callAsync('reset');
 
     try {
-      const result = await Meteor.applyAsync('insertThing', {text: 'yo', num: 3 });
+      const result = await Meteor.applyAsync('insertThing', [{text: 'yo', num: 3 }]);
       const things = await Things.find().fetchAsync();
       test.isTrue(things.length, 3)
     } catch(error) {
@@ -664,7 +670,7 @@ if (Meteor.isClient) {
     await Meteor.callAsync('reset');
 
     try {
-      await Meteor.applyAsync('insertThing', { text: 'hi', num: 10 })
+      await Meteor.applyAsync('insertThing', [{ text: 'hi', num: 10 }])
       Meteor.call('updateThings', {text: 'hi'}, (error, result) => { // TODO: Meteor.callAsync seemed buggy here
         test.equal(result, 2);
       });
@@ -692,7 +698,7 @@ if (Meteor.isClient) {
     await Meteor.callAsync('reset');
 
     try {
-      await Meteor.applyAsync('insertThing', { text: 'hi', num: 10 })
+      await Meteor.applyAsync('insertThing', [{ text: 'hi', num: 10 }])
       Meteor.call('updateThingUpsertMulti', {text: 'hi'}, (error, result) => { // TODO: Meteor.callAsync seemed buggy here
         test.equal(result, 2);
       });
@@ -740,7 +746,7 @@ if (Meteor.isClient) {
       });
 
       Meteor.call('fetchThings', (error, result) => { // TODO: Meteor.callAsync seemed buggy here
-        test.equal(things.length, 1)
+        test.equal(result.length, 1)
       });
 
     } catch(error) {
@@ -758,7 +764,7 @@ if (Meteor.isClient) {
       });
 
       Meteor.call('fetchThings', (error, result) => { // TODO: Meteor.callAsync seemed buggy here
-        test.equal(things.length, 1)
+        test.equal(result.length, 1)
       });
 
     } catch(error) {
@@ -775,8 +781,8 @@ if (Meteor.isClient) {
         test.equal(result, 1);
       });
 
-      Meteor.callAsync('fetchThings', (error, result) => { // TODO: Meteor.callAsync seemed buggy here
-        test.equal(things.length, 1)
+      Meteor.call('fetchThings', (error, result) => { // TODO: Meteor.callAsync seemed buggy here
+        test.equal(result.length, 1)
       });
 
     } catch(error) {

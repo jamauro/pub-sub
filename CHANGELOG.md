@@ -1,3 +1,7 @@
+## 0.2.2
+* fix: `react-meteor-data` subscription caching for regular `Meteor.publish` publications
+* fix: `vue-meteor-tracker` subscription caching for regular `Meteor.publish` publications
+
 ## 0.2.1
 * fix: excluding projections
 * fix: unhandled promise rejection
