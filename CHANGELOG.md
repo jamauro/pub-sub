@@ -1,3 +1,8 @@
+## 0.2.3
+* fix: `Mongo.ObjectID` support for `Meteor.publish.once` and `Meteor.publish.stream`
+* fix: filtering DDP messages
+* fix: allow case-insensitive collection names
+
 ## 0.2.2
 * fix: `react-meteor-data` subscription caching for regular `Meteor.publish` publications
 * fix: `vue-meteor-tracker` subscription caching for regular `Meteor.publish` publications

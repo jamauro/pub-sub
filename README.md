@@ -2,9 +2,9 @@
 
 `jam:pub-sub` brings three key features to Meteor apps:
 
-1. **Method-based publish / subscribe**
-2. **Change Streams-based publish / subscribe**
-3. **Subscription caching**
+1. Method-based publish / subscribe
+2. Change Streams-based publish / subscribe
+3. Subscription caching
 
 **Important**: This package expects that you'll use the promise-based `*Async` Meteor collection methods introduced in `v2.8.1`.
 

@@ -17,6 +17,9 @@ const Things = new Mongo.Collection('things');
 const Notes = new Mongo.Collection('notes');
 const Items = new Mongo.Collection('items');
 const Books = new Mongo.Collection('books');
+const Markers = new Mongo.Collection('markers', {
+  idGeneration: 'MONGO' // Mongo.ObjectID
+});
 
 const reset = async () => {
   await Things.removeAsync({});
@@ -44,6 +47,13 @@ const resetBooks = async () => {
   await Books.removeAsync({});
   await Books.insertAsync({ title: 'a book' });
   await Books.insertAsync({ title: 'nice' });
+  return;
+}
+
+const resetMarkers = async () => {
+  await Markers.removeAsync({});
+  await Markers.insertAsync({ text: 'hi' });
+  await Markers.insertAsync({ text: 'bye' });
   return;
 }
 
@@ -90,12 +100,17 @@ const insertBook = async ({ title }) => {
   return Books.insertAsync({ title });
 }
 
+const insertMarker = async ({ text }) => {
+  return Markers.insertAsync({ text });
+}
+
 if (Meteor.isServer) {
   Meteor.startup(async () => {
     await reset();
     await resetNotes();
     await resetItems();
     await resetBooks();
+    await resetMarkers();
   })
 
   Meteor.publish('notes.all', function() {
@@ -126,11 +141,19 @@ if (Meteor.isServer) {
     return Books.find();
   });
 
-  Meteor.methods({ reset, resetNotes, resetItems, resetBooks, updateThing, updateThings, updateThingUpsert, updateThingUpsertMulti, upsertThing, replaceThing, removeThing, fetchThings })
+  Meteor.publish('markers.all', function() {
+    return Markers.find();
+  });
+
+  Meteor.publish.stream('markers.stream', function() {
+    return Markers.find();
+  });
+
+  Meteor.methods({ reset, resetNotes, resetItems, resetBooks, resetMarkers, updateThing, updateThings, updateThingUpsert, updateThingUpsertMulti, upsertThing, replaceThing, removeThing, fetchThings })
 }
 
 // isomorphic methods
-Meteor.methods({ insertThing, insertItem, insertBook });
+Meteor.methods({ insertThing, insertItem, insertBook, insertMarker });
 
 if (Meteor.isClient) {
   Tinytest.addAsync('subscribe - regular publication - standard succesful', async (test) => {
@@ -291,6 +314,57 @@ if (Meteor.isClient) {
     await wait(200);
     test.isTrue(notes.length, 2);
     test.isTrue(items.length, 2);
+  });
+
+  Tinytest.addAsync('subscribe - regular pubsub - successful with Mongo.ObjectID insert', async (test) => {
+    let sub;
+    Tracker.autorun(() => {
+      sub = Meteor.subscribe('markers.all', {cacheDuration: 0.1});
+    })
+
+    let markers;
+    const computation = Tracker.autorun(() => {
+      if (sub.ready()) {
+        markers = Markers.find().fetch();
+        sub.stop();
+      }
+    });
+
+    await wait(100);
+    test.isTrue(markers.length, 2)
+
+    await Meteor.callAsync('insertMarker', {text: 'sup'});
+    await wait(100);
+
+    test.equal(markers.length, 3);
+    test.isTrue(typeof markers[0]._id._str === 'string');
+    computation.stop();
+    await Meteor.callAsync('resetMarkers');
+  });
+
+  Tinytest.addAsync('subscribe - .stream - successful with Mongo.ObjectID insert', async (test) => {
+    let sub;
+    Tracker.autorun(() => {
+      sub = Meteor.subscribe('markers.stream', {cacheDuration: 0.1});
+    })
+
+    let markers;
+    const computation = Tracker.autorun(() => {
+      if (sub.ready()) {
+        markers = Markers.find().fetch();
+        sub.stop();
+      }
+    });
+
+    await wait(100);
+    test.isTrue(markers.length, 2)
+
+    await Meteor.callAsync('insertMarker', {text: 'sup'});
+    await wait(100);
+    test.equal(markers.length, 3);
+    test.isTrue(typeof markers[0]._id._str === 'string');
+    computation.stop();
+    await Meteor.callAsync('resetMarkers');
   });
 
   Tinytest.addAsync('cache - regular pubsub -  succesful', async (test) => {
