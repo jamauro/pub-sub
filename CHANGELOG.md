@@ -1,3 +1,7 @@
+## 0.2.4
+* fix: preserve default behavior when subscription `name` is `null` or `undefined`
+* fix: bump `versionsFrom` to official Meteor 3.0 release
+
 ## 0.2.3
 * fix: `Mongo.ObjectID` support for `Meteor.publish.once` and `Meteor.publish.stream`
 * fix: filtering DDP messages
