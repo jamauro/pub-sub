@@ -2,6 +2,7 @@ import { Tinytest } from 'meteor/tinytest';
 import { Mongo } from 'meteor/mongo';
 import { Tracker } from 'meteor/tracker';
 import { merge, extractSubscribeArguments } from './lib/utils/client';
+import { convertFilter } from './lib/utils/server';
 import { subsCache } from './lib/subs-cache';
 import { PubSub } from 'meteor/jam:pub-sub';
 const _merge = require('lodash/merge');
@@ -1043,4 +1044,126 @@ if (Meteor.isServer) {
 
     test.equal(_isEqual(lodashMerged, merged), true);
   })
+
+  Tinytest.addAsync('convertFilter', async (test) => {
+    test.isTrue(_isEqual(convertFilter({
+      $or: [
+        { isPrivate: { $ne: true } },
+        { owner: '123' },
+      ],
+    }), {
+      "$or": [
+        {
+          "fullDocument.isPrivate": {
+            "$ne": true
+          }
+        },
+        {
+          "fullDocument.owner": "123"
+        }
+      ]
+    }));
+
+    test.isTrue(_isEqual(convertFilter({ "name": "Alice" }), { "fullDocument.name": "Alice" }));
+    test.isTrue(_isEqual(convertFilter({ "address.city": "New York" }), { "fullDocument.address.city": "New York" }));
+
+    test.isTrue(_isEqual(convertFilter({ "$or": [ { "age": { "$lt": 25 } }, { "age": { "$gt": 50 } } ] }), {
+      "$or": [
+        {
+          "fullDocument.age": {
+            "$lt": 25
+          }
+        },
+        {
+          "fullDocument.age": {
+            "$gt": 50
+          }
+        }
+      ]
+    }));
+
+    test.isTrue(_isEqual(convertFilter({ "$and": [ { "status": "active" }, { "score": { "$gte": 80 } } ] }), {
+      "$and": [
+        {
+          "fullDocument.status": "active"
+        },
+        {
+          "fullDocument.score": {
+            "$gte": 80
+          }
+        }
+      ]
+    }));
+
+    test.isTrue(_isEqual(convertFilter({ "$nor": [ { "age": { "$lt": 20 } }, { "status": "inactive" } ] }), {
+      "$nor": [
+        {
+          "fullDocument.age": {
+            "$lt": 20
+          }
+        },
+        {
+          "fullDocument.status": "inactive"
+        }
+      ]
+    }));
+
+    test.isTrue(_isEqual(convertFilter({
+      "$or": [
+        { "name": "Bob" },
+        {
+          "$and": [
+            { "age": { "$gte": 30 } },
+            { "city": "San Francisco" }
+          ]
+        }
+      ],
+      "status": "active"
+    }), {
+      "$or": [
+        {
+          "fullDocument.name": "Bob"
+        },
+        {
+          "$and": [
+            {
+              "fullDocument.age": {
+                "$gte": 30
+              }
+            },
+            {
+              "fullDocument.city": "San Francisco"
+            }
+          ]
+        }
+      ],
+      "fullDocument.status": "active"
+    }));
+
+    test.isTrue(_isEqual(convertFilter({ "tags": { "$in": ["mongodb", "database"] } }), {
+      "fullDocument.tags": {
+        "$in": [
+          "mongodb",
+          "database"
+        ]
+      }
+    }));
+
+    test.isTrue(_isEqual(convertFilter({ "price": { "$gt": 100, "$lt": 500 } }), {
+      "fullDocument.price": {
+        "$gt": 100,
+        "$lt": 500
+      }
+    }));
+
+    test.isTrue(_isEqual(convertFilter({ "results": { $elemMatch: { product: { $ne: "xyz" } } } }), {
+      "fullDocument.results": {
+        "$elemMatch": {
+          "product": {
+            "$ne": "xyz"
+          }
+        }
+      }
+    }));
+  });
 }
