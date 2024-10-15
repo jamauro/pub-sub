@@ -16,15 +16,47 @@ One way to reduce the need for the traditional `publish / subscribe` is to fetch
 With `jam:pub-sub`, you use `Meteor.publish.once` and the same `Meteor.subscribe` to have the data fetched via a Meteor Method and merged automatically in Minimongo so you can work with it as you're accustomed to. It also automatically preserves reactivity for the user when they make database writes. Note that these writes will **not** be broadcast in realtime to all connected clients by design but in many cases you might find that you don't need that feature of Meteor's traditional `publish / subscribe`.
 
 ## Change Streams-based publish / subscribe
-**`Experimental`**
+**`Alpha`**
 
 With `jam:pub-sub` and MongoDB Change Streams, you can preserve Meteor's magical reactivity for all clients while opting out of the traditional `publish / subscribe` and its use of the `oplog`. Use `Meteor.publish.stream` instead of using `Meteor.publish` and subscribe using the same `Meteor.subscribe` on the client.
 
-**Note**: You can mix `Meteor.publish.stream` and `Meteor.publish.once`. In fact, in most cases, you'd likely benefit the most from using `Meteor.publish.once` anywhere you can and using `Meteor.publish.stream` when you really need it.
+**Important**: Change Streams will work best when the filter you use can be shared. To that end, if you have a publication that includes a `userId`, this package will filter out that condition when setting up the Change Stream because it will result in too many unique change streams. As an example, lets say you have this publication:
+
+```js
+Meteor.publish.stream('todos', function() {
+  return Todos.find({
+    $or: [
+      { isPrivate: false },
+      { owner: this.userId }
+    ]
+  });
+});
+```
+
+When this publication is invoked, it will pull all the `Todos` that match the filter above and then begin watching a Change Stream with this filter:
+```js
+  { isPrivate: false }
+```
+
+For this particular filter, it should behave as you'd expect so you wouldn't need to make changes. However, if you have complex filters involving the `userId`, you'll need to be sure that the behavior you expect remains when using `.stream`. If it's not meeting your needs, you could split the one publication into two publications, using a `.stream` with a filter than can be shared and a `.once` for the `userId`:
+
+```js
+Meteor.publish.stream('todos.public', function() {
+  return Todos.find({ isPrivate: false });
+});
+
+Meteor.publish.once('todos.owned', function() {
+  return Todos.find({ owner: this.userId });
+});
+```
+
+The downside by splitting into two is it could result in over-fetching but the data will be merged correctly into Minimongo.
+
+**Note**: In most cases, you'd likely benefit the most from using `Meteor.publish.once` anywhere you can and using `Meteor.publish.stream` only when you really need it and with a filter than can be shared.
 
 **Note**: If you decide to entirely opt-out of using the traditional `Meteor.publish`, then you'll also want to disable the `oplog` entirely &mdash; add the `disable-oplog` package with `meteor add disable-oplog`.
 
-At the moment, this feature is considered experimental. Based on previous [Change Streams experiments](https://github.com/meteor/meteor/discussions/11842#discussioncomment-4061112) by the Meteor Community, it seems that using Change Streams as a wholesale replacement for the traditional `publish / subscribe` could "just work". However, in practice it may be a "Your Mileage May Vary" type of situation depending on the frequency of writes, number of connected clients, how you model your data, and how you set up the cursors inside of `Meteor.publish.stream`. With that said, if you're interested in this feature, I'd encourage you to try it out and share your findings.
+At the moment, this feature is considered in an `alpha` state. Based on previous [Change Streams experiments](https://github.com/meteor/meteor/discussions/11842#discussioncomment-4061112) by the Meteor Community, it seems that using Change Streams as a wholesale replacement for the traditional `publish / subscribe` could "just work". However, in practice it may be a "Your Mileage May Vary" type of situation depending on the frequency of writes, number of connected clients, how you model your data, and how you set up the cursors inside of `Meteor.publish.stream`. With that said, if you're interested in this feature, I'd encourage you to try it out and share your findings.
 
 ## Subscription caching
 Normally, when a user moves between routes or components, the subscriptions will be stopped. When a user is navigating back and forth in your app, each time will result in a re-subscribe which means more spinners, a slower experience, and is generally a waste.

@@ -1,11 +1,10 @@
 import { Tinytest } from 'meteor/tinytest';
 import { Mongo } from 'meteor/mongo';
 import { Tracker } from 'meteor/tracker';
-import { merge, extractSubscribeArguments } from './lib/utils/client';
-import { convertFilter } from './lib/utils/server';
+import { extractSubscribeArguments } from './lib/utils/client';
+import { convertFilter, removeValue } from './lib/utils/server';
 import { subsCache } from './lib/subs-cache';
 import { PubSub } from 'meteor/jam:pub-sub';
-const _merge = require('lodash/merge');
 const _isEqual = require('lodash/isEqual');
 
 PubSub.configure({
@@ -174,6 +173,7 @@ if (Meteor.isClient) {
     });
 
     await wait(200)
+    console.log('STANDARD notes', notes)
     test.isTrue(notes.length, 2)
 
     PubSub.configure({
@@ -533,7 +533,7 @@ if (Meteor.isClient) {
   });
 
   // ITEMS
-  Tinytest.addAsync('cache - .once - succesful', async (test) => {
+  Tinytest.addAsync('cache - .once - successful', async (test) => {
     await Meteor.callAsync('resetItems');
 
     let sub;
@@ -1009,42 +1009,6 @@ if (Meteor.isClient) {
 }
 
 if (Meteor.isServer) {
-  Tinytest.addAsync('merge', async (test) => {
-    const obj1 = {
-      a: 1,
-      b: {
-        c: [
-          { d: 2 },
-          { e: 3 }
-        ],
-        f: [
-          { g: 4 }
-        ]
-      },
-      g: [1, 2]
-    };
-
-    const obj2 = {
-      b: {
-        c: [
-          { h: 5 }
-        ],
-        f: [
-          { i: 6 }
-        ]
-      },
-      g: [2, 3, 4],
-      j: [
-        { k: 7 }
-      ]
-    };
-
-    const lodashMerged = _merge(obj1, obj2);
-    const merged = merge(obj1, obj2);
-
-    test.equal(_isEqual(lodashMerged, merged), true);
-  })
-
   Tinytest.addAsync('convertFilter', async (test) => {
     test.isTrue(_isEqual(convertFilter({
       $or: [
@@ -1165,5 +1129,124 @@ if (Meteor.isServer) {
         }
       }
     }));
+  });
+
+
+  Tinytest.add('removeValue - top-level fields only', function (test) {
+    const obj = {
+      name: 'Alice',
+      age: 30,
+      city: 'New York',
+    };
+    const result = removeValue(obj, 'New York');
+    const expected = {
+      name: 'Alice',
+      age: 30,
+    };
+    test.isTrue(_isEqual(result, expected));
+  });
+
+  Tinytest.add('removeValue - nested object', function (test) {
+    const obj = {
+      person: {
+        name: 'Alice',
+        age: 30,
+        address: {
+          city: 'New York',
+          zip: '10001',
+        },
+      },
+    };
+    const result = removeValue(obj, 'New York');
+    const expected = {
+      person: {
+        name: 'Alice',
+        age: 30,
+        address: {
+          zip: '10001',
+        },
+      },
+    };
+    test.isTrue(_isEqual(result, expected));
+  });
+
+  Tinytest.add('removeValue - $or condition', function (test) {
+    const obj = {
+      $or: [
+        { city: 'New York' },
+        { city: 'Los Angeles' },
+        { country: 'USA' },
+      ],
+    };
+    const result = removeValue(obj, 'New York');
+    const expected = {
+      $or: [
+        { city: 'Los Angeles' },
+        { country: 'USA' },
+      ],
+    };
+    test.isTrue(_isEqual(result, expected));
+  });
+
+  Tinytest.add('removeValue - $and condition with single remaining', function (test) {
+    const obj = {
+      $and: [
+        { city: 'New York' },
+        { city: 'Los Angeles' },
+        { country: 'USA' },
+      ],
+    };
+    const result = removeValue(obj, 'New York');
+    const expected = {
+      $and: [
+        { city: 'Los Angeles' },
+        { country: 'USA' },
+      ],
+    };
+    test.isTrue(_isEqual(result, expected));
+  });
+
+  Tinytest.add('removeValue - $and with one element left', function (test) {
+    const obj = {
+      $and: [
+        { city: 'New York' },
+        { city: 'New York' },
+        { country: 'USA' },
+      ],
+    };
+    const result = removeValue(obj, 'New York');
+    const expected = { country: 'USA' };  // Only one condition remains, so it should not be wrapped in $and
+    test.isTrue(_isEqual(result, expected));
+  });
+
+  Tinytest.add('removeValue - $nor condition', function (test) {
+    const obj = {
+      $nor: [
+        { city: 'New York' },
+        { city: 'Los Angeles' },
+        { country: 'Canada' },
+      ],
+    };
+    const result = removeValue(obj, 'Los Angeles');
+    const expected = {
+      $nor: [
+        { city: 'New York' },
+        { country: 'Canada' },
+      ],
+    };
+    test.isTrue(_isEqual(result, expected));
+  });
+
+  Tinytest.add('removeValue - $or condition with empty array', function (test) {
+    const obj = {
+      $or: [
+        { city: 'New York' },
+        { city: 'New York' },
+      ],
+    };
+    const result = removeValue(obj, 'New York');
+    const expected = {};  // If the array becomes empty, it should return an empty object
+
+    test.isTrue(_isEqual(result, expected));
   });
 }

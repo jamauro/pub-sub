@@ -1,3 +1,10 @@
+## 0.3.0
+* feat: improve Change Streams multiplexing
+* feat: support for overlapping subscriptions on the same collection
+* fix: preserve `options` in Mongo methods for Meteor 3.0+
+* fix: support `async` publish handlers for `.once` and `.stream`
+* fix: under-the-hood optimizations and simplification
+
 ## 0.2.5
 * fix: improve converting filter for Change Streams
 
