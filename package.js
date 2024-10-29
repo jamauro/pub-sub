@@ -1,6 +1,6 @@
 Package.describe({
   name: 'jam:pub-sub',
-  version: '0.3.0',
+  version: '0.3.1',
   summary: 'Publish / subscribe using a Method and/or Change Streams, and cache subscriptions',
   git: 'https://github.com/jamauro/pub-sub.git',
   documentation: 'README.md'
@@ -20,6 +20,7 @@ Package.onTest(function(api) {
   api.use('tinytest');
   api.use('mongo');
   api.use('tracker');
+  api.use('accounts-password');
   api.use('jam:pub-sub');
 
   Npm.depends({

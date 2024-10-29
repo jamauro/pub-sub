@@ -1,4 +1,5 @@
 import { Tinytest } from 'meteor/tinytest';
+import { Meteor } from 'meteor/meteor';
 import { Mongo } from 'meteor/mongo';
 import { Tracker } from 'meteor/tracker';
 import { extractSubscribeArguments } from './lib/utils/client';
@@ -149,6 +150,10 @@ if (Meteor.isServer) {
     return Markers.find();
   });
 
+  Meteor.publish.once('users.all', function() {
+    return Meteor.users.find();
+  });
+
   Meteor.methods({ reset, resetNotes, resetItems, resetBooks, resetMarkers, updateThing, updateThings, updateThingUpsert, updateThingUpsertMulti, upsertThing, replaceThing, removeThing, fetchThings })
 }
 
@@ -173,7 +178,6 @@ if (Meteor.isClient) {
     });
 
     await wait(200)
-    console.log('STANDARD notes', notes)
     test.isTrue(notes.length, 2)
 
     PubSub.configure({
@@ -1250,3 +1254,36 @@ if (Meteor.isServer) {
     test.isTrue(_isEqual(result, expected));
   });
 }
+
+Tinytest.addAsync('subscribe - .once - current user is not removed', async (test) => {
+  await wait(500); // run this test last so it doesn't interfere with other tests
+
+  const userId = '1234';
+  const originalMeteorUserId = Meteor.userId;
+  Meteor.userId = () => userId;
+
+  if (Meteor.isServer) {
+    await Meteor.users.removeAsync({});
+    await Meteor.users.insertAsync({ _id: userId, email: 'test1@example.com' });
+    await Meteor.users.insertAsync({ email: 'test2@example.com' });
+  }
+
+  if (Meteor.isClient) {
+    let sub;
+    Tracker.autorun(computation => {
+      sub = Meteor.subscribe('users.all', {cacheDuration: 0});
+      if (sub.ready()) {
+        computation.stop();
+        sub.stop();
+      }
+    });
+
+    await wait(20);
+    const users = Meteor.users.find().fetch();
+
+    test.isTrue(users.length, 1)
+    test.isTrue(users[0]._id === Meteor.userId())
+  }
+
+  Meteor.userId = originalMeteorUserId;
+});

@@ -1,3 +1,6 @@
+## 0.3.1
+* fix: prevent current user from being removed when a `Meteor.publish.once` subscription is stopped
+
 ## 0.3.0
 * feat: improve Change Streams multiplexing
 * feat: support for overlapping subscriptions on the same collection
