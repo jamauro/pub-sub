@@ -1,3 +1,7 @@
+## 0.3.2
+* fix: DDP message handling due to Meteor internal changes
+* fix: `updateAsync` when using `.once` or `.stream` due to Mongo driver changes
+
 ## 0.3.1
 * fix: prevent current user from being removed when a `Meteor.publish.once` subscription is stopped
 

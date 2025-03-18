@@ -162,6 +162,8 @@ Meteor.methods({ insertThing, insertItem, insertBook, insertMarker });
 
 if (Meteor.isClient) {
   Tinytest.addAsync('subscribe - regular publication - standard succesful', async (test) => {
+    await Meteor.callAsync('resetNotes');
+
     PubSub.configure({
       cache: false
     });
@@ -170,6 +172,7 @@ if (Meteor.isClient) {
     let notes;
     Tracker.autorun(computation => {
       sub = Meteor.subscribe('notes.all');
+      console.log('sub.ready()', sub.ready())
       if (sub.ready()) {
         computation.stop();
         notes = Notes.find().fetch();
@@ -178,6 +181,7 @@ if (Meteor.isClient) {
     });
 
     await wait(200)
+    console.log('notes', notes)
     test.isTrue(notes.length, 2)
 
     PubSub.configure({
@@ -226,6 +230,8 @@ if (Meteor.isClient) {
   });
 
   Tinytest.addAsync('subscribe - .once - successful', async (test) => {
+    await Meteor.callAsync('reset')
+
     let sub;
     Tracker.autorun(() => {
       sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
@@ -243,6 +249,9 @@ if (Meteor.isClient) {
   });
 
   Tinytest.addAsync('subscribe - .once - multiple collections successful', async (test) => {
+    await Meteor.callAsync('resetNotes');
+    await Meteor.callAsync('resetItems');
+
     let sub;
     let notes;
     Tracker.autorun(computation => {
@@ -261,6 +270,8 @@ if (Meteor.isClient) {
   });
 
   Tinytest.addAsync('subscribe - .stream - successful', async (test) => {
+    await Meteor.callAsync('resetBooks');
+
     let sub;
     Tracker.autorun(() => {
       sub = Meteor.subscribe('books.all', {cacheDuration: 0.1});
@@ -280,6 +291,8 @@ if (Meteor.isClient) {
   });
 
   Tinytest.addAsync('subscribe - .stream - successful with insert', async (test) => {
+    await Meteor.callAsync('resetBooks');
+
     let sub;
     Tracker.autorun(() => {
       sub = Meteor.subscribe('books.all', {cacheDuration: 0.1});
@@ -322,6 +335,8 @@ if (Meteor.isClient) {
   });
 
   Tinytest.addAsync('subscribe - regular pubsub - successful with Mongo.ObjectID insert', async (test) => {
+    await Meteor.callAsync('resetMarkers');
+
     let sub;
     Tracker.autorun(() => {
       sub = Meteor.subscribe('markers.all', {cacheDuration: 0.1});
