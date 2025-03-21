@@ -1,6 +1,6 @@
 Package.describe({
   name: 'jam:pub-sub',
-  version: '0.3.2',
+  version: '0.3.3',
   summary: 'Publish / subscribe using a Method and/or Change Streams, and cache subscriptions',
   git: 'https://github.com/jamauro/pub-sub.git',
   documentation: 'README.md'

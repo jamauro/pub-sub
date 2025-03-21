@@ -1,3 +1,6 @@
+## 0.3.3
+* fix: improvements to subscription caching
+
 ## 0.3.2
 * fix: DDP message handling due to Meteor internal changes
 * fix: `updateAsync` when using `.once` or `.stream` due to Mongo driver changes

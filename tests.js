@@ -161,6 +161,238 @@ if (Meteor.isServer) {
 Meteor.methods({ insertThing, insertItem, insertBook, insertMarker });
 
 if (Meteor.isClient) {
+  Tinytest.addAsync('insert - simple', async (test) => {
+    await wait(101);
+    await Meteor.callAsync('reset');
+
+    try {
+      const result = await Meteor.applyAsync('insertThing', [{text: 'yo', num: 3 }]);
+      const things = await Things.find().fetchAsync();
+      test.isTrue(things.length, 3)
+    } catch(error) {
+      test.isTrue(error = undefined);
+    }
+  });
+
+  Tinytest.addAsync('update - simple', async (test) => {
+    await Meteor.callAsync('reset');
+
+    try {
+      const _id = await Meteor.applyAsync('insertThing', [{ text: 'yo', num: 10 }], { returnStubValue: true })
+      await Meteor.callAsync('updateThing', { _id });
+      await wait(250)
+      const thing = Things.findOne({_id});
+      test.equal(thing.text, 'hello')
+    } catch(error) {
+      test.isTrue(error = undefined);
+    }
+  });
+
+  Tinytest.addAsync('update - shorthand _id', async (test) => {
+    await Meteor.callAsync('reset');
+
+    try {
+      const _id = await Meteor.applyAsync('insertThing', [{ text: 'yo', num: 10 }], { returnStubValue: true })
+      await Meteor.callAsync('updateThing', _id);
+      await wait(250)
+      const thing = Things.findOne({_id});
+      test.equal(thing.text, 'hello')
+    } catch(error) {
+      test.isTrue(error = undefined);
+    }
+  });
+
+  Tinytest.addAsync('update - replace', async (test) => {
+    await Meteor.callAsync('reset');
+
+    try {
+      const _id = await Meteor.applyAsync('insertThing', [{ text: 't', num: 1 }], { returnStubValue: true })
+      const result = await Meteor.callAsync('replaceThing', _id)
+      test.equal(result, 1);
+      const thing = Things.findOne(_id);
+      await wait(200);
+      test.equal(thing.num, 2)
+    } catch(error) {
+      test.isTrue(error = undefined);
+    }
+  });
+
+  Tinytest.addAsync('update - multi', async (test) => {
+    await Meteor.callAsync('reset');
+
+    try {
+      await Meteor.applyAsync('insertThing', [{ text: 'hi', num: 10 }])
+      const result = await Meteor.callAsync('updateThings', {text: 'hi'});
+
+      test.equal(result, 2);
+
+    } catch(error) {
+      test.isTrue(error = undefined);
+    }
+  });
+
+  Tinytest.addAsync('update - upsert', async (test) => {
+    await Meteor.callAsync('reset');
+
+    try {
+      const initialThings = Things.find().fetch();
+      const result = await Meteor.callAsync('updateThingUpsert', {text: 'hello there'});
+      test.equal(result, 1);
+      const things = Things.find().fetch();
+      test.equal(things.length, initialThings.length + 1)
+    } catch(error) {
+      test.isTrue(error = undefined);
+    }
+  });
+
+  Tinytest.addAsync('update - upsert multi', async (test) => {
+    await Meteor.callAsync('reset');
+
+    try {
+      await Meteor.applyAsync('insertThing', [{ text: 'hi', num: 10 }])
+      const result = await Meteor.callAsync('updateThingUpsertMulti', {text: 'hi'});
+
+      test.equal(result, 2);
+    } catch(error) {
+      test.isTrue(error = undefined);
+    }
+  });
+
+  Tinytest.addAsync('upsert - simple', async (test) => {
+    await Meteor.callAsync('reset');
+
+    try {
+      const initialThings = Things.find().fetch();
+      const result = await Meteor.callAsync('upsertThing', {text: 'howdy'});
+      test.equal(result, 1);
+      const things = Things.find().fetch();
+      test.equal(things.length, initialThings.length + 1)
+    } catch(error) {
+      test.isTrue(error = undefined);
+    }
+  });
+
+  Tinytest.addAsync('remove - simple', async (test) => {
+    await Meteor.callAsync('reset');
+
+    try {
+      const result = await Meteor.callAsync('removeThing', {text: 'hi'});
+      test.equal(result, 1);
+      const things = await Meteor.callAsync('fetchThings');
+
+      test.equal(things.length, 1)
+      test.equal(things[0].text, 'sup')
+    } catch(error) {
+      test.isTrue(error = undefined);
+    }
+  });
+
+  Tinytest.addAsync('remove - shorthand _id', async (test) => {
+    await Meteor.callAsync('reset');
+
+    try {
+      const thing = Things.findOne();
+      const result = await Meteor.callAsync('removeThing', thing._id);
+
+      test.equal(result, 1);
+
+      const value = await Meteor.callAsync('fetchThings');
+
+      test.equal(value.length, 1)
+
+    } catch(error) {
+      test.isTrue(error = undefined);
+    }
+  });
+
+  Tinytest.addAsync('remove - _id', async (test) => {
+    await Meteor.callAsync('reset');
+
+    try {
+      const thing = Things.findOne();
+      const result = await Meteor.callAsync('removeThing', {_id: thing._id});
+
+      test.equal(result, 1);
+
+      const value = await Meteor.callAsync('fetchThings');
+
+      test.equal(value.length, 1)
+
+    } catch(error) {
+      test.isTrue(error = undefined);
+    }
+  });
+
+  Tinytest.addAsync('remove - $eq', async (test) => {
+    await Meteor.callAsync('reset');
+
+    try {
+      const thing = Things.findOne();
+      const result = await Meteor.callAsync('removeThing', {_id: {$eq: thing._id}});
+
+      test.equal(result, 1);
+
+      const value = await Meteor.callAsync('fetchThings');
+
+      test.equal(value.length, 1)
+    } catch(error) {
+      test.isTrue(error = undefined);
+    }
+  });
+
+  Tinytest.addAsync('remove - $in', async (test) => {
+    await Meteor.callAsync('reset');
+
+    try {
+      const currentThings = Things.find().fetch();
+      const result = await Meteor.callAsync('removeThing', {_id: {$in: currentThings.map(t => t._id)}});
+      test.equal(result, 2);
+      const things = await Meteor.callAsync('fetchThings');
+
+      test.equal(things.length, 0)
+    } catch(error) {
+      test.isTrue(error = undefined);
+    }
+  });
+
+  Tinytest.addAsync('remove - $nin', async (test) => {
+    await Meteor.callAsync('reset');
+
+    try {
+      const currentThings = Things.find().fetch();
+      const result = await Meteor.callAsync('removeThing', {_id: {$nin: currentThings.map(t => t._id)}});
+      test.equal(result, 0);
+      const things = await Meteor.callAsync('fetchThings');
+
+      test.equal(things.length, 2)
+    } catch(error) {
+      test.isTrue(error = undefined);
+    }
+  });
+
+  Tinytest.addAsync('cache - .once - set to false', async (test) => {
+    await wait(100);
+    await Meteor.callAsync('resetNotes');
+
+    let notes;
+    Tracker.autorun(computation => {
+      const sub = Meteor.subscribe('notes.all', {cache: false});
+      if (sub.ready()) {
+        notes = Notes.find().fetch();
+        computation.stop();
+        sub.stop();
+      }
+    });
+
+    await wait(50);
+    test.equal(notes.length, 2)
+
+    await wait(250);
+    const notesStop = Notes.find().fetch();
+
+    test.equal(notesStop.length, 0)
+  });
+
   Tinytest.addAsync('subscribe - regular publication - standard succesful', async (test) => {
     await Meteor.callAsync('resetNotes');
 
@@ -172,7 +404,6 @@ if (Meteor.isClient) {
     let notes;
     Tracker.autorun(computation => {
       sub = Meteor.subscribe('notes.all');
-      console.log('sub.ready()', sub.ready())
       if (sub.ready()) {
         computation.stop();
         notes = Notes.find().fetch();
@@ -181,7 +412,6 @@ if (Meteor.isClient) {
     });
 
     await wait(200)
-    console.log('notes', notes)
     test.isTrue(notes.length, 2)
 
     PubSub.configure({
@@ -334,35 +564,9 @@ if (Meteor.isClient) {
     test.isTrue(items.length, 2);
   });
 
-  Tinytest.addAsync('subscribe - regular pubsub - successful with Mongo.ObjectID insert', async (test) => {
-    await Meteor.callAsync('resetMarkers');
-
-    let sub;
-    Tracker.autorun(() => {
-      sub = Meteor.subscribe('markers.all', {cacheDuration: 0.1});
-    })
-
-    let markers;
-    const computation = Tracker.autorun(() => {
-      if (sub.ready()) {
-        markers = Markers.find().fetch();
-        sub.stop();
-      }
-    });
-
-    await wait(100);
-    test.isTrue(markers.length, 2)
-
-    await Meteor.callAsync('insertMarker', {text: 'sup'});
-    await wait(100);
-
-    test.equal(markers.length, 3);
-    test.isTrue(typeof markers[0]._id._str === 'string');
-    computation.stop();
-    await Meteor.callAsync('resetMarkers');
-  });
-
   Tinytest.addAsync('subscribe - .stream - successful with Mongo.ObjectID insert', async (test) => {
+    await Meteor.callAsync('resetMarkers');
+
     let sub;
     Tracker.autorun(() => {
       sub = Meteor.subscribe('markers.stream', {cacheDuration: 0.1});
@@ -376,7 +580,7 @@ if (Meteor.isClient) {
       }
     });
 
-    await wait(100);
+    await wait(101);
     test.isTrue(markers.length, 2)
 
     await Meteor.callAsync('insertMarker', {text: 'sup'});
@@ -384,7 +588,33 @@ if (Meteor.isClient) {
     test.equal(markers.length, 3);
     test.isTrue(typeof markers[0]._id._str === 'string');
     computation.stop();
+  });
+
+  Tinytest.addAsync('subscribe - regular pubsub - successful with Mongo.ObjectID insert', async (test) => {
     await Meteor.callAsync('resetMarkers');
+
+    let sub;
+    Tracker.autorun(() => {
+      sub = Meteor.subscribe('markers.all', {cacheDuration: 0.1});
+    })
+
+    let markers;
+    const computation = Tracker.autorun(() => {
+      if (sub.ready()) {
+        markers = Markers.find().fetch();
+        sub.stop()
+      }
+    });
+
+    await wait(100);
+    test.isTrue(markers.length, 2)
+
+    await Meteor.callAsync('insertMarker', {text: 'sup'});
+    await wait(100);
+
+    test.equal(markers.length, 3);
+    test.isTrue(typeof markers[0]._id._str === 'string');
+    computation.stop();
   });
 
   Tinytest.addAsync('cache - regular pubsub -  succesful', async (test) => {
@@ -397,10 +627,10 @@ if (Meteor.isClient) {
     });
 
     await wait(50);
-    sub.stop();
 
     const notes = Notes.find().fetch();
     test.equal(notes.length, 2);
+    sub.stop();
 
     await wait(550);
     const notesLater = Notes.find().fetch();
@@ -520,7 +750,7 @@ if (Meteor.isClient) {
     test.equal(sub1.subscriptionId, sub2.subscriptionId);
 
     await wait(100)
-    Meteor.call('resetNotes');
+    await Meteor.callAsync('resetNotes');
   });
 
   Tinytest.addAsync('cache - regular pubsub - miss duration 0', async (test) => {
@@ -548,7 +778,7 @@ if (Meteor.isClient) {
     test.notEqual(sub1.subscriptionId, sub2.subscriptionId);
 
     await wait(100)
-    Meteor.call('resetNotes');
+    await Meteor.callAsync('resetNotes');
   });
 
   // ITEMS
@@ -625,28 +855,6 @@ if (Meteor.isClient) {
     test.equal(itemsStop.length, 1)
   });
 
-  Tinytest.addAsync('cache - .once - set to false', async (test) => {
-    await wait(100);
-    await Meteor.callAsync('resetNotes');
-
-    let notes;
-    Tracker.autorun(computation => {
-      const sub = Meteor.subscribe('notes.all', {cache: false});
-      if (sub.ready()) {
-        notes = Notes.find().fetch();
-        computation.stop();
-        sub.stop();
-      }
-    });
-
-    await wait(50);
-    test.equal(notes.length, 2)
-
-    await wait(250);
-    const notesStop = Notes.find().fetch();
-    test.equal(notesStop.length, 0)
-  });
-
   Tinytest.addAsync('cache - .once - hit', async (test) => {
     await Meteor.callAsync('resetItems');
     let sub1;
@@ -673,7 +881,7 @@ if (Meteor.isClient) {
     await wait(50);
     test.equal(sub1.subscriptionId, sub2.subscriptionId);
 
-    Meteor.call('resetItems');
+    await Meteor.callAsync('resetItems');
   });
 
   Tinytest.addAsync('cache - .once - miss duration 0', async (test) => {
@@ -701,217 +909,7 @@ if (Meteor.isClient) {
     test.notEqual(sub1.subscriptionId, sub2.subscriptionId);
 
     await wait(100)
-    Meteor.call('resetItems');
-  });
-
-  Tinytest.addAsync('insert - simple', async (test) => {
-    await wait(101);
-    await Meteor.callAsync('reset');
-
-    try {
-      const result = await Meteor.applyAsync('insertThing', [{text: 'yo', num: 3 }]);
-      const things = await Things.find().fetchAsync();
-      test.isTrue(things.length, 3)
-    } catch(error) {
-      test.isTrue(error = undefined);
-    }
-  });
-
-  Tinytest.addAsync('update - simple', async (test) => {
-    await Meteor.callAsync('reset');
-
-    try {
-      const _id = await Meteor.applyAsync('insertThing', [{ text: 'yo', num: 10 }], { returnStubValue: true })
-      await Meteor.callAsync('updateThing', { _id });
-      await wait(250)
-      const thing = Things.findOne({_id});
-      test.equal(thing.text, 'hello')
-    } catch(error) {
-      test.isTrue(error = undefined);
-    }
-  });
-
-  Tinytest.addAsync('update - shorthand _id', async (test) => {
-    await Meteor.callAsync('reset');
-
-    try {
-      const _id = await Meteor.applyAsync('insertThing', [{ text: 'yo', num: 10 }], { returnStubValue: true })
-      await Meteor.callAsync('updateThing', _id);
-      await wait(250)
-      const thing = Things.findOne({_id});
-      test.equal(thing.text, 'hello')
-    } catch(error) {
-      test.isTrue(error = undefined);
-    }
-  });
-
-  Tinytest.addAsync('update - replace', async (test) => {
-    await Meteor.callAsync('reset');
-
-    try {
-      const _id = await Meteor.applyAsync('insertThing', [{ text: 't', num: 1 }], { returnStubValue: true })
-      const result = await Meteor.callAsync('replaceThing', _id)
-      test.equal(result, 1);
-      const thing = Things.findOne(_id);
-      await wait(200);
-      test.equal(thing.num, 2)
-    } catch(error) {
-      test.isTrue(error = undefined);
-    }
-  });
-
-  Tinytest.addAsync('update - multi', async (test) => {
-    await Meteor.callAsync('reset');
-
-    try {
-      await Meteor.applyAsync('insertThing', [{ text: 'hi', num: 10 }])
-      Meteor.call('updateThings', {text: 'hi'}, (error, result) => { // TODO: Meteor.callAsync seemed buggy here
-        test.equal(result, 2);
-      });
-
-    } catch(error) {
-      test.isTrue(error = undefined);
-    }
-  });
-
-  Tinytest.addAsync('update - upsert', async (test) => {
-    await Meteor.callAsync('reset');
-
-    try {
-      const initialThings = Things.find().fetch();
-      const result = await Meteor.callAsync('updateThingUpsert', {text: 'hello there'});
-      test.equal(result, 1);
-      const things = Things.find().fetch();
-      test.equal(things.length, initialThings.length + 1)
-    } catch(error) {
-      test.isTrue(error = undefined);
-    }
-  });
-
-  Tinytest.addAsync('update - upsert multi', async (test) => {
-    await Meteor.callAsync('reset');
-
-    try {
-      await Meteor.applyAsync('insertThing', [{ text: 'hi', num: 10 }])
-      Meteor.call('updateThingUpsertMulti', {text: 'hi'}, (error, result) => { // TODO: Meteor.callAsync seemed buggy here
-        test.equal(result, 2);
-      });
-    } catch(error) {
-      test.isTrue(error = undefined);
-    }
-  });
-
-  Tinytest.addAsync('upsert - simple', async (test) => {
-    await Meteor.callAsync('reset');
-
-    try {
-      const initialThings = Things.find().fetch();
-      const result = await Meteor.callAsync('upsertThing', {text: 'howdy'});
-      test.equal(result, 1);
-      const things = Things.find().fetch();
-      test.equal(things.length, initialThings.length + 1)
-    } catch(error) {
-      test.isTrue(error = undefined);
-    }
-  });
-
-  Tinytest.addAsync('remove - simple', async (test) => {
-    await Meteor.callAsync('reset');
-
-    try {
-      const result = await Meteor.callAsync('removeThing', {text: 'hi'});
-      test.equal(result, 1);
-      const things = await Meteor.callAsync('fetchThings');
-
-      test.equal(things.length, 1)
-      test.equal(things[0].text, 'sup')
-    } catch(error) {
-      test.isTrue(error = undefined);
-    }
-  });
-
-  Tinytest.addAsync('remove - shorthand _id', async (test) => {
-    await Meteor.callAsync('reset');
-
-    try {
-      const thing = Things.findOne();
-      Meteor.call('removeThing', thing._id, (error, result) => { // TODO: Meteor.callAsync seemed buggy here
-        test.equal(result, 1);
-      });
-
-      Meteor.call('fetchThings', (error, result) => { // TODO: Meteor.callAsync seemed buggy here
-        test.equal(result.length, 1)
-      });
-
-    } catch(error) {
-      test.isTrue(error = undefined);
-    }
-  });
-
-  Tinytest.addAsync('remove - _id', async (test) => {
-    await Meteor.callAsync('reset');
-
-    try {
-      const thing = Things.findOne();
-      Meteor.call('removeThing', {_id: thing._id}, (error, result) => { // TODO: Meteor.callAsync seemed buggy here
-        test.equal(result, 1);
-      });
-
-      Meteor.call('fetchThings', (error, result) => { // TODO: Meteor.callAsync seemed buggy here
-        test.equal(result.length, 1)
-      });
-
-    } catch(error) {
-      test.isTrue(error = undefined);
-    }
-  });
-
-  Tinytest.addAsync('remove - $eq', async (test) => {
-    await Meteor.callAsync('reset');
-
-    try {
-      const thing = Things.findOne();
-      Meteor.call('removeThing', {_id: {$eq: thing._id}}, (error, result) => { // TODO: Meteor.callAsync seemed buggy here
-        test.equal(result, 1);
-      });
-
-      Meteor.call('fetchThings', (error, result) => { // TODO: Meteor.callAsync seemed buggy here
-        test.equal(result.length, 1)
-      });
-
-    } catch(error) {
-      test.isTrue(error = undefined);
-    }
-  });
-
-  Tinytest.addAsync('remove - $in', async (test) => {
-    await Meteor.callAsync('reset');
-
-    try {
-      const currentThings = Things.find().fetch();
-      const result = await Meteor.callAsync('removeThing', {_id: {$in: currentThings.map(t => t._id)}});
-      test.equal(result, 2);
-      const things = await Meteor.callAsync('fetchThings');
-
-      test.equal(things.length, 0)
-    } catch(error) {
-      test.isTrue(error = undefined);
-    }
-  });
-
-  Tinytest.addAsync('remove - $nin', async (test) => {
-    await Meteor.callAsync('reset');
-
-    try {
-      const currentThings = Things.find().fetch();
-      const result = await Meteor.callAsync('removeThing', {_id: {$nin: currentThings.map(t => t._id)}});
-      test.equal(result, 0);
-      const things = await Meteor.callAsync('fetchThings');
-
-      test.equal(things.length, 2)
-    } catch(error) {
-      test.isTrue(error = undefined);
-    }
+    await Meteor.callAsync('resetItems');
   });
 
   Tinytest.addAsync('clearCache', async (test) => {
@@ -1302,3 +1300,4 @@ Tinytest.addAsync('subscribe - .once - current user is not removed', async (test
 
   Meteor.userId = originalMeteorUserId;
 });
+
