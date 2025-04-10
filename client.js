@@ -1,5 +1,6 @@
 import './lib/subscribe';
 import './lib/ddp';
-import { PubSub as PS } from './lib/config';
+import { clearCache } from './lib/subs-cache';
+import { config, configure } from './lib/config';
 
-export const PubSub = Object.freeze(PS);
+export const PubSub = Object.freeze({ config, configure, clearCache });

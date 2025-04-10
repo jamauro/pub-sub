@@ -1,3 +1,39 @@
+export type ServerState = 'auto' | 'standard' | 'minimal' | 'none';
+
+export interface Config {
+  /**
+   * Enables or disables caching globally.
+   */
+  cache: boolean;
+
+  /**
+   * Duration in seconds for which to cache subscriptions.
+   */
+  cacheDuration: number;
+
+  /**
+   * Controls the amount of server state retained.
+   */
+  serverState: ServerState;
+
+  /**
+   * Enables console debugging.
+   */
+  debug: boolean;
+}
+
+/**
+ * The current PubSub config
+ */
+export const config: Config;
+
+/**
+ * Updates the PubSub config
+ *
+ * @param options - Partial config object.
+ * @returns The updated config.
+ */
+export function configure(options: Partial<Config>): Config;
 
 export declare function publishOnce(name: string, handler: (...args: any[]): { [collectionName: string]: object[] };
 export declare function stream(name: string, handler: (...args: any[]) => void): void;

@@ -3,9 +3,14 @@ import { Meteor } from 'meteor/meteor';
 import { Mongo } from 'meteor/mongo';
 import { Tracker } from 'meteor/tracker';
 import { extractSubscribeArguments } from './lib/utils/client';
-import { convertFilter, removeValue } from './lib/utils/server';
+import { convertFilter, removeValue, trim, matchesFilter } from './lib/utils/server';
+import { createKey } from './lib/utils/shared';
 import { subsCache } from './lib/subs-cache';
 import { PubSub } from 'meteor/jam:pub-sub';
+import { MongoInternals } from 'meteor/mongo';
+
+const Cache = Meteor.isServer && require('./lib/cache').Cache || {}
+
 const _isEqual = require('lodash/isEqual');
 
 PubSub.configure({
@@ -617,7 +622,7 @@ if (Meteor.isClient) {
     computation.stop();
   });
 
-  Tinytest.addAsync('cache - regular pubsub -  succesful', async (test) => {
+  Tinytest.addAsync('cache - regular pubsub -  successful', async (test) => {
     let sub;
     Tracker.autorun(computation => {
       sub = Meteor.subscribe('notes.all', {cacheDuration: 0.5});
@@ -626,7 +631,7 @@ if (Meteor.isClient) {
       }
     });
 
-    await wait(50);
+    await wait(100);
 
     const notes = Notes.find().fetch();
     test.equal(notes.length, 2);
@@ -1266,6 +1271,87 @@ if (Meteor.isServer) {
 
     test.isTrue(_isEqual(result, expected));
   });
+
+  Tinytest.add('trim - normal case', function (test) {
+    test.equal(trim([1, 2, 3, 4, 5], 1, 3), [2, 3, 4]);
+  });
+
+  Tinytest.add('trim - skip is 0', function (test) {
+    test.equal(trim([1, 2, 3, 4], 0, 2), [1, 2]);
+  });
+
+  Tinytest.add('trim - limit larger than array length', function (test) {
+    test.equal(trim([1, 2], 0, 10), [1, 2]);
+  });
+
+  Tinytest.add('trim - skip exceeds array length', function (test) {
+    test.equal(trim([1, 2, 3], 5, 2), []);
+  });
+
+  Tinytest.add('trim - limit is zero', function (test) {
+    test.equal(trim([1, 2, 3], 0, 0), []);
+  });
+
+  Tinytest.add('trim - negative limit', function (test) {
+    test.equal(trim([1, 2, 3], 0, -5), []);
+  });
+
+  Tinytest.add('trim - exact end of array', function (test) {
+    test.equal(trim([1, 2, 3, 4], 2, 2), [3, 4]);
+  });
+
+  Tinytest.add('trim - limit trims to end of array', function (test) {
+    test.equal(trim([1, 2, 3, 4], 2, 5), [3, 4]);
+  });
+
+  Tinytest.add('matchesFilter - should return true when document matches filter', function(test) {
+    const doc = { _id: 1, name: 'John', age: 30 };
+    const filter = { _id: 1, name: 'John' };
+
+    test.isTrue(matchesFilter(doc, filter), 'Document matches the filter');
+  });
+
+  Tinytest.add('matchesFilter - should return false when document does not match filter', function(test) {
+    const doc = { _id: 1, name: 'John', age: 30 };
+    const filter = { _id: 2, name: 'John' };
+
+    test.isFalse(matchesFilter(doc, filter), 'Document does not match the filter');
+  });
+
+  Tinytest.add('matchesFilter - should handle $in operator for _id field', function(test) {
+    const doc = { _id: 1, name: 'John', age: 30 };
+    const filter = { _id: { $in: [1, 2] } };
+
+    test.isTrue(matchesFilter(doc, filter), 'Document matches the filter with $in operator');
+  });
+
+  Tinytest.add('matchesFilter - should return false for $in operator when _id is not in array', function(test) {
+    const doc = { _id: 3, name: 'John', age: 30 };
+    const filter = { _id: { $in: [1, 2] } };
+
+    test.isFalse(matchesFilter(doc, filter), 'Document does not match the filter with $in operator');
+  });
+
+  Tinytest.add('matchesFilter - should handle fields other than _id', function(test) {
+    const doc = { _id: 1, name: 'John', age: 30 };
+    const filter = { name: 'John', age: 30 };
+
+    test.isTrue(matchesFilter(doc, filter), 'Document matches the filter for non-_id fields');
+  });
+
+  Tinytest.add('matchesFilter - should return false if any non-_id field does not match', function(test) {
+    const doc = { _id: 1, name: 'John', age: 30 };
+    const filter = { name: 'John', age: 25 };
+
+    test.isFalse(matchesFilter(doc, filter), 'Document does not match the filter for non-_id fields');
+  });
+
+  Tinytest.add('matchesFilter - should return true when filter is empty', function(test) {
+    const doc = { _id: 1, name: 'John', age: 30 };
+    const filter = {};
+
+    test.isTrue(matchesFilter(doc, filter), 'Empty filter matches all documents');
+  });
 }
 
 Tinytest.addAsync('subscribe - .once - current user is not removed', async (test) => {
@@ -1301,3 +1387,136 @@ Tinytest.addAsync('subscribe - .once - current user is not removed', async (test
   Meteor.userId = originalMeteorUserId;
 });
 
+//// Testing Cache /////
+if (Meteor.isServer) {
+  Tinytest.add('Cache - insert new document', function (test) {
+    const key = createKey({ collectionName: 'things', filter: 'some-key' });
+    const doc = { _id: 'mocked-id', name: 'Document 1' };
+
+    Cache.get(key);
+    Cache.set(key, [doc]);
+
+    const entry = Cache.get(key);
+
+    test.equal(entry.docs.length, 1, 'Document should be inserted into the cache');
+    test.equal(entry.docs[0]._id, doc._id, 'Inserted document should have the correct _id');
+  });
+
+  Tinytest.add('Cache - replace existing document', function (test) {
+    const key = createKey({ collectionName: 'things', filter: 'some-key' });
+    const doc = { _id: 'mocked-id', name: 'Document 1' };
+    Cache.set(key, [doc]);
+
+    const updatedDoc = { _id: 'mocked-id', name: 'Updated Document' };
+    Cache.set(key, [updatedDoc]);
+
+    const entry = Cache.get(key);
+
+    test.equal(entry.docs.length, 1, 'Document should still exist in the cache after replacement');
+    test.equal(entry.docs[0].name, 'Updated Document', 'Document should be replaced correctly');
+  });
+
+  Tinytest.add('Cache - get cached documents', function (test) {
+    const key = createKey({ collectionName: 'things', filter: 'some-key' });
+    const doc = { _id: 'mocked-id', name: 'Document 1' };
+    Cache.set(key, [doc]);
+
+    const entry = Cache.get(key);
+
+    test.equal(entry.docs.length, 1, 'Should fetch the document from the cache');
+    test.equal(entry.docs[0]._id, doc._id, 'Fetched document should have the correct _id');
+  });
+
+  Tinytest.add('Cache - limit enforced', function (test) {
+    const key = createKey({ collectionName: 'things', filter: 'some-key-limit' });
+    const docs = [
+      { _id: '1', name: 'Document 1' },
+      { _id: '2', name: 'Document 2' },
+    ];
+    Cache.get(key, { limit: 1 });
+    Cache.set(key, docs);
+
+    const entry = Cache.get(key, { limit: 1 });
+
+    test.equal(entry.docs.length, 1, 'Should fetch one document according to limit');
+    test.equal(entry.docs[0]._id, '1', 'The correct document should be fetched');
+  });
+
+  Tinytest.addAsync('Cache - update document in cache', async function (test) {
+    const key = createKey({ collectionName: 'things', filter: { _id: 'mocked-id' } });
+    const doc = { _id: 'mocked-id', name: 'Document 1' };
+    Cache.get(key);
+    Cache.set(key, [doc]);
+
+    const updatedDoc = { _id: 'mocked-id', name: 'Updated Document' };
+    await Cache.update(key, updatedDoc, 'update');
+
+    const entry = Cache.get(key);
+
+    test.equal(entry.docs.length, 1, 'Document should still exist in the cache after update');
+    test.equal(entry.docs[0].name, 'Updated Document', 'Document should be updated correctly');
+  });
+
+  Tinytest.addAsync('Cache - update document that no longer matches filter', async function (test) {
+    const key = createKey({ collectionName: 'things', filter: { name: 'Document 2' } });
+    const doc = { _id: 'mocked-id', name: 'Document 2' };
+    Cache.get(key);
+    Cache.set(key, [doc]);
+
+    const updatedDoc = { _id: 'mocked-id', name: 'Non-matching Document' };
+    await Cache.update(key, updatedDoc, 'update');
+
+    const entry = Cache.get(key);
+
+    test.equal(entry.docs.length, 0, 'Document should be removed if it no longer matches the filter');
+  });
+
+  Tinytest.add('Cache - delete document from cache', function (test) {
+    const key = createKey({ collectionName: 'things', filter: 'some-key' });
+    const doc = { _id: 'mocked-id', name: 'Document 1' };
+    Cache.set(key, [doc]);
+
+    Cache.delete(key, doc);
+
+    const entry = Cache.get(key);
+
+    test.equal(entry.docs.length, 0, 'Document should be removed from the cache');
+  });
+
+  Tinytest.add('Cache - set timestamp for document', function (test) {
+    const key = createKey({ collectionName: 'things', filter: 'some-key', sort: { updatedAt: -1 } });
+    const doc = { _id: 'mocked-id', name: 'Document 1', updatedAt: new Date() };
+    Cache.get(key); // init
+    Cache.set(key, [doc]);
+
+    Cache.setTimestamp(key, 'mocked-sub-id', doc);
+    const entry = Cache.get(key);
+
+    test.isTrue(entry.timestamps.size > 0, 'Timestamps should be set correctly for the document');
+  });
+
+  Tinytest.add('Cache - clear timestamp for document', function (test) {
+    const key = createKey({ collectionName: 'things', filter: 'some-key', sort: { updatedAt: -1 } });
+    const doc = { _id: 'mocked-id', name: 'Document 1', updatedAt: new Date() };
+    Cache.get(key); // init
+    Cache.set(key, [doc]);
+
+    Cache.setTimestamp(key, 'mocked-sub-id', doc);
+    Cache.clearTimestamp(key, 'mocked-sub-id');
+
+    const entry = Cache.get(key);
+
+    test.equal(entry.timestamps.size, 0, 'Timestamps should be cleared correctly');
+  });
+
+  Tinytest.add('Cache - Clear the entire cache', function (test) {
+    const key = createKey({ collectionName: 'things', filter: 'some-key' });
+    const doc = { _id: 'mocked-id', name: 'Document 1' };
+    Cache.set(key, [doc]);
+
+    Cache.clear();
+
+    test.equal(Cache.get(key).docs.length, 0, 'Cache should be cleared and contain no documents');
+  });
+}
+////

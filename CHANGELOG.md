@@ -1,3 +1,10 @@
+## 0.4.0
+* feat: data caching for `.stream`
+* feat: `serverState` config
+* feat: efficient pagination / infinite scroll for `.stream` and `.once`
+* feat: `Infinity` duration
+* fix: under-the-hood improvements, optimizations, and code simpification
+
 ## 0.3.3
 * fix: improvements to subscription caching
 
