@@ -58,7 +58,7 @@ The data will be merged correctly into Minimongo so you can keep one compound fi
 At the moment, this feature is considered in a `beta` state. Based on previous [Change Streams experiments](https://github.com/meteor/meteor/discussions/11842#discussioncomment-4061112) by the Meteor Community, it seems that using Change Streams as a wholesale replacement for the traditional `publish / subscribe` could "just work". However, in practice it may be a "Your Mileage May Vary" type of situation depending on the frequency of writes, number of connected clients, how you model your data, and how you set up the cursors inside of `Meteor.publish.stream`. With that said, if you're interested in this feature, I'd encourage you to try it out and share your findings.
 
 #### Caching `.stream` data on the server
-By default, the intial set of documents requested by a `.stream` are cached and are kept in sync as data changes. For example, let's say you set up a stream for a chat room. When the first person connects, they'll fetch the data for the room, e.g. the most recent 20 messages based on your `sort ` and `limit`, and establish a change stream for the room.
+By default, the intial set of documents requested by a `.stream` are cached and kept in sync as data changes. For example, let's say you set up a stream for a chat room. When the first person connects, they'll fetch the data for the room, e.g. the most recent 20 messages based on your `sort ` and `limit`, and establish a change stream for the room.
 
 ```js
 Meteor.publish.stream('messages.room', function({ roomId, sort, limit }) {
@@ -264,6 +264,7 @@ function next() {
 ```
 
 **Pagination**
+
 Same set up as above but we introduce `skip`  on the client only and tweak the `next()` function.
 
 ```js
