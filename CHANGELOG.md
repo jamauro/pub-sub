@@ -1,3 +1,7 @@
+## 0.4.1
+* fix: `pubNames` undefined on startup
+* fix: `vue-meteor-tracker` issue when subscribing
+
 ## 0.4.0
 * feat: data caching for `.stream`
 * feat: `serverState` config
