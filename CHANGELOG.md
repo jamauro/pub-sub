@@ -1,3 +1,6 @@
+## 0.4.2
+* fix: error when using `.updateAsync` and a null result is returned from mongo
+
 ## 0.4.1
 * fix: `pubNames` undefined on startup
 * fix: `vue-meteor-tracker` issue when subscribing

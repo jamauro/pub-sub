@@ -193,6 +193,20 @@ if (Meteor.isClient) {
     }
   });
 
+  Tinytest.addAsync('update - null result', async (test) => {
+    await Meteor.callAsync('reset');
+
+    try {
+      const _id = await Meteor.applyAsync('insertThing', [{ text: 'yo', num: 10 }], { returnStubValue: true })
+      await Meteor.callAsync('updateThing', { _id: 'not found' });
+      await wait(250)
+      const thing = Things.findOne({_id});
+      test.equal(thing.text, 'yo')
+    } catch(error) {
+      test.isTrue(error = undefined);
+    }
+  });
+
   Tinytest.addAsync('update - shorthand _id', async (test) => {
     await Meteor.callAsync('reset');
 
