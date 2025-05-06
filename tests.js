@@ -23,6 +23,7 @@ const Things = new Mongo.Collection('things');
 const Notes = new Mongo.Collection('notes');
 const Items = new Mongo.Collection('items');
 const Books = new Mongo.Collection('books');
+const Dogs = new Mongo.Collection('dogs');
 const Markers = new Mongo.Collection('markers', {
   idGeneration: 'MONGO' // Mongo.ObjectID
 });
@@ -60,6 +61,11 @@ const resetMarkers = async () => {
   await Markers.removeAsync({});
   await Markers.insertAsync({ text: 'hi' });
   await Markers.insertAsync({ text: 'bye' });
+  return;
+}
+
+const resetDogs = async () => {
+  await Dogs.removeAsync({});
   return;
 }
 
@@ -110,6 +116,22 @@ const insertMarker = async ({ text }) => {
   return Markers.insertAsync({ text });
 }
 
+const insertDog = async ({ text }) => {
+  return Dogs.insertAsync({ text, ...(Meteor.isServer && { something: 1 }) });
+}
+
+const updateDog = async ({ _id, text }) => {
+  return Dogs.updateAsync({ _id }, { $set: { text, ...(Meteor.isServer && { something: 2 }) }});
+}
+
+const replaceDog = async ({ _id, text }) => {
+  return Dogs.updateAsync({ _id }, { text, ...(Meteor.isServer && { something: 3 }) });
+}
+
+const removeDog = async (selector) => {
+  return Dogs.removeAsync(selector);
+}
+
 if (Meteor.isServer) {
   Meteor.startup(async () => {
     await reset();
@@ -117,6 +139,7 @@ if (Meteor.isServer) {
     await resetItems();
     await resetBooks();
     await resetMarkers();
+    await resetDogs();
   })
 
   Meteor.publish('notes.all', function() {
@@ -159,11 +182,15 @@ if (Meteor.isServer) {
     return Meteor.users.find();
   });
 
-  Meteor.methods({ reset, resetNotes, resetItems, resetBooks, resetMarkers, updateThing, updateThings, updateThingUpsert, updateThingUpsertMulti, upsertThing, replaceThing, removeThing, fetchThings })
+  Meteor.publish.stream('dogs.all', function() {
+    return Dogs.find({}, { fields: { text: 1 }});
+  });
+
+  Meteor.methods({ reset, resetNotes, resetItems, resetBooks, resetMarkers, resetDogs, updateThing, updateThings, updateThingUpsert, updateThingUpsertMulti, upsertThing, replaceThing, removeThing, fetchThings })
 }
 
 // isomorphic methods
-Meteor.methods({ insertThing, insertItem, insertBook, insertMarker });
+Meteor.methods({ insertThing, insertItem, insertBook, insertMarker, insertDog, updateDog, replaceDog, removeDog });
 
 if (Meteor.isClient) {
   Tinytest.addAsync('insert - simple', async (test) => {
@@ -583,6 +610,59 @@ if (Meteor.isClient) {
     test.isTrue(items.length, 2);
   });
 
+  Tinytest.addAsync('subscribe - .stream - successful with projection', async (test) => {
+    await Meteor.callAsync('resetDogs');
+
+    let sub;
+    Tracker.autorun(() => {
+      sub = Meteor.subscribe('dogs.all', { cacheDuration: 2 });
+    })
+
+    let dogs;
+    const computation = Tracker.autorun(() => {
+      if (sub.ready()) {
+        dogs = Dogs.find().fetch();
+      }
+    });
+
+    await wait(101);
+
+    test.equal(dogs.length, 0)
+
+    const dogId = await Meteor.callAsync('insertDog', {text: 'westhighland terrier'});
+    await wait(200);
+
+    test.equal(dogs.length, 1);
+
+    const [ dog ] = dogs;
+    test.isTrue(dog.text === 'westhighland terrier');
+    test.isTrue(dog.something === undefined);
+
+    await Meteor.callAsync('updateDog', { _id: dogId, text: 'westie' })
+    await wait(200);
+
+    const [ dog2 ] = Dogs.find().fetch();
+    test.isTrue(dog2.text === 'westie');
+    test.isTrue(dog2.something === undefined);
+
+    await Meteor.callAsync('replaceDog', { _id: dogId, text: 'sup' })
+    await wait(200);
+
+    const [ dog3 ] = Dogs.find().fetch();
+    test.isTrue(dog3.text === 'sup');
+    test.isTrue(dog3.something === undefined);
+
+    await Meteor.callAsync('removeDog', { _id: dogId })
+    await wait(200);
+
+    const finalDogs = Dogs.find().fetch();
+
+    test.equal(finalDogs.length, 0);
+
+    sub.stop();
+    computation.stop();
+  });
+
   Tinytest.addAsync('subscribe - .stream - successful with Mongo.ObjectID insert', async (test) => {
     await Meteor.callAsync('resetMarkers');
 
@@ -600,7 +680,7 @@ if (Meteor.isClient) {
     });
 
     await wait(101);
-    test.isTrue(markers.length, 2)
+    test.equal(markers.length, 2)
 
     await Meteor.callAsync('insertMarker', {text: 'sup'});
     await wait(100);

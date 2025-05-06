@@ -55,6 +55,8 @@ The data will be merged correctly into Minimongo so you can keep one compound fi
 
 **Note**: If you decide to entirely opt-out of using the traditional `Meteor.publish`, then you'll also want to disable the `oplog` entirely &mdash; add the `disable-oplog` package with `meteor add disable-oplog`.
 
+**Note**: Exclusion projections are not supported at this time. Use inclusion projections, e.g. `{ something: 1 }`
+
 At the moment, this feature is considered in a `beta` state. Based on previous [Change Streams experiments](https://github.com/meteor/meteor/discussions/11842#discussioncomment-4061112) by the Meteor Community, it seems that using Change Streams as a wholesale replacement for the traditional `publish / subscribe` could "just work". However, in practice it may be a "Your Mileage May Vary" type of situation depending on the frequency of writes, number of connected clients, how you model your data, and how you set up the cursors inside of `Meteor.publish.stream`. With that said, if you're interested in this feature, I'd encourage you to try it out and share your findings.
 
 #### Caching `.stream` data on the server

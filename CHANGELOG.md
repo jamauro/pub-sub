@@ -1,3 +1,6 @@
+## 0.4.3
+* fix: `.stream` when using `projection` or `fields` in cursor
+
 ## 0.4.2
 * fix: error when using `.updateAsync` and a null result is returned from mongo
 
