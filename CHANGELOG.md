@@ -1,3 +1,7 @@
+## 0.4.4
+* fix: `.once` - merge doc when doc already exists in minimongo
+* fix: `.stream` - cache hit when should fetch
+
 ## 0.4.3
 * fix: `.stream` when using `projection` or `fields` in cursor
 

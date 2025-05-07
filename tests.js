@@ -1,6 +1,7 @@
 import { Tinytest } from 'meteor/tinytest';
 import { Meteor } from 'meteor/meteor';
 import { Mongo } from 'meteor/mongo';
+import { DDP } from 'meteor/ddp-client';
 import { Tracker } from 'meteor/tracker';
 import { extractSubscribeArguments } from './lib/utils/client';
 import { convertFilter, removeValue, trim, matchesFilter } from './lib/utils/server';
@@ -108,6 +109,14 @@ const insertItem = async ({ amount }) => {
   return Items.insertAsync({ amount });
 }
 
+const updateItem = async ({ _id, amount }) => {
+  return Items.updateAsync({ _id }, { $set: { amount }});
+}
+
+const fetchItems = async () => {
+  return Items.find().fetchAsync()
+}
+
 const insertBook = async ({ title }) => {
   return Books.insertAsync({ title });
 }
@@ -186,11 +195,70 @@ if (Meteor.isServer) {
     return Dogs.find({}, { fields: { text: 1 }});
   });
 
-  Meteor.methods({ reset, resetNotes, resetItems, resetBooks, resetMarkers, resetDogs, updateThing, updateThings, updateThingUpsert, updateThingUpsertMulti, upsertThing, replaceThing, removeThing, fetchThings })
+  Meteor.methods({ reset, resetNotes, resetItems, resetBooks, resetMarkers, resetDogs, updateThing, updateThings, updateThingUpsert, updateThingUpsertMulti, upsertThing, replaceThing, removeThing, fetchThings, updateItem, fetchItems })
 }
 
 // isomorphic methods
 Meteor.methods({ insertThing, insertItem, insertBook, insertMarker, insertDog, updateDog, replaceDog, removeDog });
+
+
+function createConnection() {
+  return DDP.connect(Meteor.connection._stream.rawUrl, Meteor.connection.options);
+}
+
+function callWithConnectionPromise(connection, methodName, ...args) {
+  return connection.callAsync(methodName, ...args);
+}
+
+Tinytest.addAsync('cache - .once - merge when doc exists', async (test) => {
+  let conn2;
+
+  if (Meteor.isServer) {
+    await resetItems();
+  }
+
+  if (Meteor.isClient) { // user A starts a session
+    conn2 = createConnection(); // user B connects
+
+    let comp;
+    let sub;
+
+    comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('items.all', {cache: false});
+    });
+
+    await wait(100);
+    const items = Items.find().fetch();
+
+    test.equal(items.length, 2);
+    test.isTrue(items.some(i => i.amount !== 100))
+
+    Meteor.disconnect();
+    sub.stop();
+    comp.stop();
+
+    await wait(10);
+    await callWithConnectionPromise(conn2, 'updateItem', { _id: items[0]._id, amount: 100 }); // user B updates the items
+  }
+
+  if (Meteor.isClient) { // user A comes back
+    await wait(100);
+    Meteor.reconnect();
+
+    const sub = Meteor.subscribe('items.all', { cacheDuration: 1 });
+
+    const result = await Meteor.callAsync('fetchItems');
+    test.equal(result.length, 2);
+    test.isTrue(result.some(i => i.amount === 100))
+
+    const items = Items.find().fetch();
+    test.equal(items.length, 2);
+    test.isTrue(items.some(i => i.amount === 100))
+
+    sub.stop();
+    conn2.close();
+  }
+});
 
 if (Meteor.isClient) {
   Tinytest.addAsync('insert - simple', async (test) => {
