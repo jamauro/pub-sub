@@ -1635,11 +1635,14 @@ if (Meteor.isServer) {
     const meteorId = new MongoID.ObjectID();
     const input = {
       user: {
-        _id: meteorId
+        _id: meteorId,
+        createdAt: new Date()
       }
     };
     const result = convertObjectId(input);
+
     test.instanceOf(result.user._id, ObjectId);
+    test.instanceOf(result.user.createdAt, Date);
     test.equal(result.user._id.toHexString(), meteorId.valueOf());
   });
 
@@ -1677,7 +1680,6 @@ if (Meteor.isServer) {
     };
 
     const result = convertObjectId(input);
-
     test.instanceOf(result.list[0].a, ObjectId);
     test.instanceOf(result.list[1].b, ObjectId);
     test.instanceOf(result.list[2].c.d, ObjectId);
@@ -1706,6 +1708,7 @@ if (Meteor.isServer) {
     };
 
     const result = convertObjectId(queryWithInOperator);
+
     test.equal(result['user.address.city'].$in[0] instanceof ObjectId, true, 'Should convert ObjectId inside $in array');
     test.equal(result['user.address.city'].$in[1] instanceof ObjectId, true, 'Should convert ObjectId inside $in array');
 

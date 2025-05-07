@@ -1,3 +1,6 @@
+## 0.4.6
+* fix: `ObjectID` conversion bug
+
 ## 0.4.5
 * fix: `ObjectID`  support when using `.updateAsync`
 
