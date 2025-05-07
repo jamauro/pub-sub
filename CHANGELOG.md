@@ -1,3 +1,6 @@
+## 0.4.5
+* fix: `ObjectID`  support when using `.updateAsync`
+
 ## 0.4.4
 * fix: `.once` - merge doc when doc already exists in minimongo
 * fix: `.stream` - cache hit when should fetch

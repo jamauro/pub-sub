@@ -1,14 +1,16 @@
 import { Tinytest } from 'meteor/tinytest';
 import { Meteor } from 'meteor/meteor';
-import { Mongo } from 'meteor/mongo';
+import { Mongo, MongoInternals } from 'meteor/mongo';
+import { MongoID } from 'meteor/mongo-id';
 import { DDP } from 'meteor/ddp-client';
 import { Tracker } from 'meteor/tracker';
 import { extractSubscribeArguments } from './lib/utils/client';
-import { convertFilter, removeValue, trim, matchesFilter } from './lib/utils/server';
+import { convertFilter, removeValue, trim, matchesFilter, convertObjectId } from './lib/utils/server';
 import { createKey } from './lib/utils/shared';
 import { subsCache } from './lib/subs-cache';
 import { PubSub } from 'meteor/jam:pub-sub';
-import { MongoInternals } from 'meteor/mongo';
+
+const { ObjectId } = MongoInternals?.NpmModules.mongodb.module || {};
 
 const Cache = Meteor.isServer && require('./lib/cache').Cache || {}
 
@@ -60,8 +62,8 @@ const resetBooks = async () => {
 
 const resetMarkers = async () => {
   await Markers.removeAsync({});
-  await Markers.insertAsync({ text: 'hi' });
-  await Markers.insertAsync({ text: 'bye' });
+  await Markers.insertAsync({ text: 'hi', something: new Mongo.ObjectID() });
+  await Markers.insertAsync({ text: 'bye', something: new Mongo.ObjectID() });
   return;
 }
 
@@ -123,6 +125,14 @@ const insertBook = async ({ title }) => {
 
 const insertMarker = async ({ text }) => {
   return Markers.insertAsync({ text });
+}
+
+const updateMarker = async ({ _id, text }) => {
+  return Markers.updateAsync({ _id }, {$set: { text }});
+}
+
+const updateMarkers = async ({ text }) => {
+  return Markers.updateAsync({ text }, {$set: {text: 'hello'}}, {multi: true});
 }
 
 const insertDog = async ({ text }) => {
@@ -187,6 +197,10 @@ if (Meteor.isServer) {
     return Markers.find();
   });
 
+  Meteor.publish.once('markers.once', function() {
+    return Markers.find();
+  });
+
   Meteor.publish.once('users.all', function() {
     return Meteor.users.find();
   });
@@ -199,7 +213,7 @@ if (Meteor.isServer) {
 }
 
 // isomorphic methods
-Meteor.methods({ insertThing, insertItem, insertBook, insertMarker, insertDog, updateDog, replaceDog, removeDog });
+Meteor.methods({ insertThing, insertItem, insertBook, insertMarker, updateMarker, updateMarkers, insertDog, updateDog, replaceDog, removeDog });
 
 
 function createConnection() {
@@ -784,6 +798,94 @@ if (Meteor.isClient) {
     computation.stop();
   });
 
+  Tinytest.addAsync('subscribe - .once - successful with Mongo.ObjectID insert', async (test) => {
+    await Meteor.callAsync('resetMarkers');
+
+    let sub;
+    Tracker.autorun(() => {
+      sub = Meteor.subscribe('markers.once', {cacheDuration: 0.1});
+    })
+
+    let markers;
+    const computation = Tracker.autorun(() => {
+      if (sub.ready()) {
+        markers = Markers.find().fetch();
+        sub.stop();
+      }
+    });
+
+    await wait(101);
+    test.equal(markers.length, 2)
+
+    await Meteor.callAsync('insertMarker', {text: 'sup'});
+    await wait(100);
+    test.equal(markers.length, 3);
+    test.isTrue(typeof markers[0]._id._str === 'string');
+    computation.stop();
+  });
+
+  Tinytest.addAsync('subscribe - .once - successful with Mongo.ObjectID update', async (test) => {
+    await Meteor.callAsync('resetMarkers');
+
+    let sub;
+    Tracker.autorun(() => {
+      sub = Meteor.subscribe('markers.once', {cacheDuration: 0.1});
+    })
+
+    let markers;
+    const computation = Tracker.autorun(() => {
+      if (sub.ready()) {
+        markers = Markers.find().fetch();
+        sub.stop();
+      }
+    });
+
+    await wait(101);
+    test.equal(markers.length, 2)
+
+    const _id = markers[0]._id;
+
+    await Meteor.callAsync('updateMarker', { _id, text: 'sup' });
+    await wait(100);
+
+    test.equal(markers.length, 2);
+    const marker = Markers.findOne({ _id });
+
+    test.equal(marker.text, 'sup')
+    computation.stop();
+  });
+
+  Tinytest.addAsync('subscribe - .once - successful with Mongo.ObjectID update multi', async (test) => {
+    await Meteor.callAsync('resetMarkers');
+
+    let sub;
+    Tracker.autorun(() => {
+      sub = Meteor.subscribe('markers.once', {cacheDuration: 0.1});
+    })
+
+    let markers;
+    const computation = Tracker.autorun(() => {
+      if (sub.ready()) {
+        markers = Markers.find().fetch();
+        sub.stop();
+      }
+    });
+
+    await wait(101);
+    test.equal(markers.length, 2)
+
+    await Meteor.callAsync('insertMarker', { text: 'hi' });
+    await Meteor.callAsync('updateMarkers', { text: 'hi' });
+    await wait(100);
+
+    markers = Markers.find().fetch();
+    test.equal(markers.length, 3);
+
+    test.equal(markers.filter(m => m.text === 'hello').length, 2)
+    computation.stop();
+  });
+
+
   Tinytest.addAsync('cache - regular pubsub -  successful', async (test) => {
     let sub;
     Tracker.autorun(computation => {
@@ -1200,115 +1302,115 @@ if (Meteor.isServer) {
         { owner: '123' },
       ],
     }), {
-      "$or": [
+      '$or': [
         {
-          "fullDocument.isPrivate": {
-            "$ne": true
+          'fullDocument.isPrivate': {
+            '$ne': true
           }
         },
         {
-          "fullDocument.owner": "123"
+          'fullDocument.owner': '123'
         }
       ]
     }));
 
-    test.isTrue(_isEqual(convertFilter({ "name": "Alice" }), { "fullDocument.name": "Alice" }));
-    test.isTrue(_isEqual(convertFilter({ "address.city": "New York" }), { "fullDocument.address.city": "New York" }));
+    test.isTrue(_isEqual(convertFilter({ 'name': 'Alice' }), { 'fullDocument.name': 'Alice' }));
+    test.isTrue(_isEqual(convertFilter({ 'address.city': 'New York' }), { 'fullDocument.address.city': 'New York' }));
 
-    test.isTrue(_isEqual(convertFilter({ "$or": [ { "age": { "$lt": 25 } }, { "age": { "$gt": 50 } } ] }), {
-      "$or": [
+    test.isTrue(_isEqual(convertFilter({ '$or': [ { 'age': { '$lt': 25 } }, { 'age': { '$gt': 50 } } ] }), {
+      '$or': [
         {
-          "fullDocument.age": {
-            "$lt": 25
+          'fullDocument.age': {
+            '$lt': 25
           }
         },
         {
-          "fullDocument.age": {
-            "$gt": 50
-          }
-        }
-      ]
-    }));
-
-    test.isTrue(_isEqual(convertFilter({ "$and": [ { "status": "active" }, { "score": { "$gte": 80 } } ] }), {
-      "$and": [
-        {
-          "fullDocument.status": "active"
-        },
-        {
-          "fullDocument.score": {
-            "$gte": 80
+          'fullDocument.age': {
+            '$gt': 50
           }
         }
       ]
     }));
 
-    test.isTrue(_isEqual(convertFilter({ "$nor": [ { "age": { "$lt": 20 } }, { "status": "inactive" } ] }), {
-      "$nor": [
+    test.isTrue(_isEqual(convertFilter({ '$and': [ { 'status': 'active' }, { 'score': { '$gte': 80 } } ] }), {
+      '$and': [
         {
-          "fullDocument.age": {
-            "$lt": 20
+          'fullDocument.status': 'active'
+        },
+        {
+          'fullDocument.score': {
+            '$gte': 80
+          }
+        }
+      ]
+    }));
+
+    test.isTrue(_isEqual(convertFilter({ '$nor': [ { 'age': { '$lt': 20 } }, { 'status': 'inactive' } ] }), {
+      '$nor': [
+        {
+          'fullDocument.age': {
+            '$lt': 20
           }
         },
         {
-          "fullDocument.status": "inactive"
+          'fullDocument.status': 'inactive'
         }
       ]
     }));
 
     test.isTrue(_isEqual(convertFilter({
-      "$or": [
-        { "name": "Bob" },
+      '$or': [
+        { 'name': 'Bob' },
         {
-          "$and": [
-            { "age": { "$gte": 30 } },
-            { "city": "San Francisco" }
+          '$and': [
+            { 'age': { '$gte': 30 } },
+            { 'city': 'San Francisco' }
           ]
         }
       ],
-      "status": "active"
+      'status': 'active'
     }), {
-      "$or": [
+      '$or': [
         {
-          "fullDocument.name": "Bob"
+          'fullDocument.name': 'Bob'
         },
         {
-          "$and": [
+          '$and': [
             {
-              "fullDocument.age": {
-                "$gte": 30
+              'fullDocument.age': {
+                '$gte': 30
               }
             },
             {
-              "fullDocument.city": "San Francisco"
+              'fullDocument.city': 'San Francisco'
             }
           ]
         }
       ],
-      "fullDocument.status": "active"
+      'fullDocument.status': 'active'
     }));
 
-    test.isTrue(_isEqual(convertFilter({ "tags": { "$in": ["mongodb", "database"] } }), {
-      "fullDocument.tags": {
-        "$in": [
-          "mongodb",
-          "database"
+    test.isTrue(_isEqual(convertFilter({ 'tags': { '$in': ['mongodb', 'database'] } }), {
+      'fullDocument.tags': {
+        '$in': [
+          'mongodb',
+          'database'
         ]
       }
     }));
 
-    test.isTrue(_isEqual(convertFilter({ "price": { "$gt": 100, "$lt": 500 } }), {
-      "fullDocument.price": {
-        "$gt": 100,
-        "$lt": 500
+    test.isTrue(_isEqual(convertFilter({ 'price': { '$gt': 100, '$lt': 500 } }), {
+      'fullDocument.price': {
+        '$gt': 100,
+        '$lt': 500
       }
     }));
 
-    test.isTrue(_isEqual(convertFilter({ "results": { $elemMatch: { product: { $ne: "xyz" } } } }), {
-      "fullDocument.results": {
-        "$elemMatch": {
-          "product": {
-            "$ne": "xyz"
+    test.isTrue(_isEqual(convertFilter({ 'results': { $elemMatch: { product: { $ne: 'xyz' } } } }), {
+      'fullDocument.results': {
+        '$elemMatch': {
+          'product': {
+            '$ne': 'xyz'
           }
         }
       }
@@ -1513,6 +1615,143 @@ if (Meteor.isServer) {
     const filter = {};
 
     test.isTrue(matchesFilter(doc, filter), 'Empty filter matches all documents');
+  });
+
+  Tinytest.add('convertObjectId - converts Mongo.ObjectID to ObjectId', function (test) {
+    const meteorId = new MongoID.ObjectID();
+    const result = convertObjectId({ _id: meteorId });
+    test.instanceOf(result._id, ObjectId);
+    test.equal(result._id.toHexString(), meteorId.valueOf());
+  });
+
+  Tinytest.add('convertObjectId - converts ObjectId to Mongo.ObjectID', function (test) {
+    const mongoId = new ObjectId();
+    const result = convertObjectId({ _id: mongoId });
+    test.instanceOf(result._id, MongoID.ObjectID);
+    test.equal(result._id.valueOf(), mongoId.toHexString());
+  });
+
+  Tinytest.add('convertObjectId - handles nested objects', function (test) {
+    const meteorId = new MongoID.ObjectID();
+    const input = {
+      user: {
+        _id: meteorId
+      }
+    };
+    const result = convertObjectId(input);
+    test.instanceOf(result.user._id, ObjectId);
+    test.equal(result.user._id.toHexString(), meteorId.valueOf());
+  });
+
+  Tinytest.add('convertObjectId - handles arrays of objects', function (test) {
+    const meteorId = new MongoID.ObjectID();
+    const input = [
+      { _id: meteorId },
+      { name: 'test', value: 42 }
+    ];
+    const result = convertObjectId(input);
+    test.instanceOf(result[0]._id, ObjectId);
+    test.equal(result[0]._id.toHexString(), meteorId.valueOf());
+    test.equal(result[1].name, 'test');
+    test.equal(result[1].value, 42);
+  });
+
+  Tinytest.add('convertObjectId - handles primitive values', function (test) {
+    test.equal(convertObjectId(null), null);
+    test.equal(convertObjectId(42), 42);
+    test.equal(convertObjectId('string'), 'string');
+    test.equal(convertObjectId(true), true);
+  });
+
+  Tinytest.add('convertObjectId - leaves empty objects unchanged', function (test) {
+    test.equal(convertObjectId({}), {});
+  });
+
+  Tinytest.add('convertObjectId - handles nested structure from Meteor to Mongo', function (test) {
+    const input = {
+      list: [
+        { a: new MongoID.ObjectID() },
+        { b: new MongoID.ObjectID() },
+        { c: { d: new MongoID.ObjectID() } }
+      ]
+    };
+
+    const result = convertObjectId(input);
+
+    test.instanceOf(result.list[0].a, ObjectId);
+    test.instanceOf(result.list[1].b, ObjectId);
+    test.instanceOf(result.list[2].c.d, ObjectId);
+  });
+
+  Tinytest.add('convertObjectId - handles nested structure from Mongo to Meteor', function (test) {
+    const input = {
+      list: [
+        { a: new ObjectId() },
+        { b: new ObjectId() },
+        { c: { d: new ObjectId() } }
+      ]
+    };
+
+    const result = convertObjectId(input);
+
+    test.instanceOf(result.list[0].a, Mongo.ObjectID);
+    test.instanceOf(result.list[1].b, Mongo.ObjectID);
+    test.instanceOf(result.list[2].c.d, Mongo.ObjectID);
+  });
+
+  Tinytest.add('convertObjectId - handles MongoDB special operators', function(test) {
+    // $in
+    const queryWithInOperator = {
+      'user.address.city': { $in: [new Mongo.ObjectID(), new Mongo.ObjectID()] }
+    };
+
+    const result = convertObjectId(queryWithInOperator);
+    test.equal(result['user.address.city'].$in[0] instanceof ObjectId, true, 'Should convert ObjectId inside $in array');
+    test.equal(result['user.address.city'].$in[1] instanceof ObjectId, true, 'Should convert ObjectId inside $in array');
+
+    // $nin
+    const queryWithNinOperator = {
+      'user.address.city': { $nin: [new Mongo.ObjectID(), new Mongo.ObjectID()] }
+    };
+    const resultNin = convertObjectId(queryWithNinOperator);
+    test.equal(resultNin['user.address.city'].$nin[0] instanceof ObjectId, true, 'Should convert ObjectId inside $nin array');
+    test.equal(resultNin['user.address.city'].$nin[1] instanceof ObjectId, true, 'Should convert ObjectId inside $nin array');
+
+    // $set operator with nested ObjectId values
+    const queryWithSetOperator = {
+      $set: {
+        'user.address.city': new Mongo.ObjectID(),
+        'user.address.country': new Mongo.ObjectID()
+      }
+    };
+    const resultSet = convertObjectId(queryWithSetOperator);
+    test.equal(resultSet.$set['user.address.city'] instanceof ObjectId, true, 'Should convert ObjectId inside $set');
+    test.equal(resultSet.$set['user.address.country'] instanceof ObjectId, true, 'Should convert ObjectId inside $set');
+
+    // Nested object with ObjectIds, not using MongoDB operators
+    const queryWithNestedObjects = {
+      user: {
+        address: {
+          city: new Mongo.ObjectID(),
+          country: new Mongo.ObjectID()
+        }
+      }
+    };
+    const resultNested = convertObjectId(queryWithNestedObjects);
+    test.equal(resultNested.user.address.city instanceof ObjectId, true, 'Should convert ObjectId in nested object');
+    test.equal(resultNested.user.address.country instanceof ObjectId, true, 'Should convert ObjectId in nested object');
+
+    // Complex query with both regular fields and operators
+    const complexQuery = {
+      'user.address.city': { $in: [new Mongo.ObjectID(), new Mongo.ObjectID()] },
+      'user.age': { $gt: 25 },
+      'user.name': 'John'
+    };
+    const resultComplex = convertObjectId(complexQuery);
+    test.equal(resultComplex['user.address.city'].$in[0] instanceof ObjectId, true, 'Should convert ObjectId inside $in array');
+    test.equal(resultComplex['user.address.city'].$in[1] instanceof ObjectId, true, 'Should convert ObjectId inside $in array');
+    test.equal(resultComplex['user.age'].$gt, 25, 'Should retain $gt value');
+    test.equal(resultComplex['user.name'], 'John', 'Should retain regular field value');
   });
 }
 
