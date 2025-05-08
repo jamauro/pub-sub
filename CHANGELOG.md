@@ -1,3 +1,6 @@
+## 0.5.0
+* feat: improved `.updateAsync` to send less data over the wire
+
 ## 0.4.6
 * fix: `ObjectID` conversion bug
 

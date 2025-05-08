@@ -5,7 +5,7 @@ import { MongoID } from 'meteor/mongo-id';
 import { DDP } from 'meteor/ddp-client';
 import { Tracker } from 'meteor/tracker';
 import { extractSubscribeArguments } from './lib/utils/client';
-import { convertFilter, removeValue, trim, matchesFilter, convertObjectId } from './lib/utils/server';
+import { convertFilter, removeValue, trim, matchesFilter, convertObjectId, createProjection } from './lib/utils/server';
 import { createKey } from './lib/utils/shared';
 import { subsCache } from './lib/subs-cache';
 import { PubSub } from 'meteor/jam:pub-sub';
@@ -33,8 +33,8 @@ const Markers = new Mongo.Collection('markers', {
 
 const reset = async () => {
   await Things.removeAsync({});
-  await Things.insertAsync({ text: 'hi', num: 1});
-  await Things.insertAsync({ text: 'sup', num: 2});
+  await Things.insertAsync({ text: 'hi', num: 1  });
+  await Things.insertAsync({ text: 'sup', num: 2 });
 
   return;
 }
@@ -75,12 +75,21 @@ const resetDogs = async () => {
 const insertThing = async ({ text, num }) => {
   return Things.insertAsync({ text, num });
 }
+
 const updateThing = async (selector) => {
   return Things.updateAsync(selector, {$set: {text: 'hello'}});
 }
 
+const updateThingWithUnset = async (selector) => {
+  return Things.updateAsync(selector, {$set: {text: 'hello'}, $unset: { num: '' }});
+}
+
 const updateThings = async ({ text }) => {
   return Things.updateAsync({ text }, {$set: {text: 'hello'}}, {multi: true});
+}
+
+const updateThingsWithUnset = async ({ text }) => {
+  return Things.updateAsync({ text }, {$set: {text: 'hello'}, $unset: { num: '' }}, {multi: true});
 }
 
 const updateThingUpsert = async ({ text }) => {
@@ -209,7 +218,7 @@ if (Meteor.isServer) {
     return Dogs.find({}, { fields: { text: 1 }});
   });
 
-  Meteor.methods({ reset, resetNotes, resetItems, resetBooks, resetMarkers, resetDogs, updateThing, updateThings, updateThingUpsert, updateThingUpsertMulti, upsertThing, replaceThing, removeThing, fetchThings, updateItem, fetchItems })
+  Meteor.methods({ reset, resetNotes, resetItems, resetBooks, resetMarkers, resetDogs, updateThing, updateThingWithUnset, updateThings, updateThingsWithUnset, updateThingUpsert, updateThingUpsertMulti, upsertThing, replaceThing, removeThing, fetchThings, updateItem, fetchItems })
 }
 
 // isomorphic methods
@@ -279,6 +288,11 @@ if (Meteor.isClient) {
     await wait(101);
     await Meteor.callAsync('reset');
 
+    let sub;
+    const comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
+    })
+
     try {
       const result = await Meteor.applyAsync('insertThing', [{text: 'yo', num: 3 }]);
       const things = await Things.find().fetchAsync();
@@ -286,10 +300,18 @@ if (Meteor.isClient) {
     } catch(error) {
       test.isTrue(error = undefined);
     }
+
+    sub.stop()
+    comp.stop()
   });
 
   Tinytest.addAsync('update - simple', async (test) => {
     await Meteor.callAsync('reset');
+
+    let sub;
+    const comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
+    })
 
     try {
       const _id = await Meteor.applyAsync('insertThing', [{ text: 'yo', num: 10 }], { returnStubValue: true })
@@ -300,10 +322,42 @@ if (Meteor.isClient) {
     } catch(error) {
       test.isTrue(error = undefined);
     }
+
+    sub.stop();
+    comp.stop();
+  });
+
+  Tinytest.addAsync('update - unset', async (test) => {
+    await Meteor.callAsync('reset');
+
+    let sub;
+    const comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
+    })
+
+    try {
+      const _id = await Meteor.applyAsync('insertThing', [{ text: 'yo', num: 10 }], { returnStubValue: true })
+      await Meteor.callAsync('updateThingWithUnset', { _id });
+      await wait(250)
+      const thing = Things.findOne({_id});
+
+      test.equal(thing.text, 'hello')
+      test.equal(thing.num, undefined)
+    } catch(error) {
+      test.isTrue(error = undefined);
+    }
+
+    sub.stop();
+    comp.stop();
   });
 
   Tinytest.addAsync('update - null result', async (test) => {
     await Meteor.callAsync('reset');
+
+    let sub;
+    const comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
+    })
 
     try {
       const _id = await Meteor.applyAsync('insertThing', [{ text: 'yo', num: 10 }], { returnStubValue: true })
@@ -314,10 +368,18 @@ if (Meteor.isClient) {
     } catch(error) {
       test.isTrue(error = undefined);
     }
+
+    sub.stop();
+    comp.stop();
   });
 
   Tinytest.addAsync('update - shorthand _id', async (test) => {
     await Meteor.callAsync('reset');
+
+    let sub;
+    const comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
+    })
 
     try {
       const _id = await Meteor.applyAsync('insertThing', [{ text: 'yo', num: 10 }], { returnStubValue: true })
@@ -328,10 +390,18 @@ if (Meteor.isClient) {
     } catch(error) {
       test.isTrue(error = undefined);
     }
+
+    sub.stop();
+    comp.stop();
   });
 
   Tinytest.addAsync('update - replace', async (test) => {
     await Meteor.callAsync('reset');
+
+    let sub;
+    const comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
+    })
 
     try {
       const _id = await Meteor.applyAsync('insertThing', [{ text: 't', num: 1 }], { returnStubValue: true })
@@ -343,10 +413,18 @@ if (Meteor.isClient) {
     } catch(error) {
       test.isTrue(error = undefined);
     }
+
+    sub.stop();
+    comp.stop();
   });
 
   Tinytest.addAsync('update - multi', async (test) => {
     await Meteor.callAsync('reset');
+
+    let sub;
+    const comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
+    })
 
     try {
       await Meteor.applyAsync('insertThing', [{ text: 'hi', num: 10 }])
@@ -357,10 +435,45 @@ if (Meteor.isClient) {
     } catch(error) {
       test.isTrue(error = undefined);
     }
+
+    sub.stop();
+    comp.stop();
+  });
+
+  Tinytest.addAsync('update - multi with unset', async (test) => {
+    await Meteor.callAsync('reset');
+
+    let sub;
+    const comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
+    })
+
+    try {
+      await Meteor.applyAsync('insertThing', [{ text: 'hi', num: 10 }])
+      const result = await Meteor.callAsync('updateThingsWithUnset', {text: 'hi'});
+      test.equal(result, 2);
+
+      await wait(50);
+      const things = Things.find().fetch();
+
+      test.equal(things.length, 3)
+      test.equal(things.filter(t => t.text === 'hello').length, 2)
+      test.equal(things.filter(t => t.num === undefined).length, 2)
+    } catch(error) {
+      test.isTrue(error = undefined);
+    }
+
+    sub.stop();
+    comp.stop();
   });
 
   Tinytest.addAsync('update - upsert', async (test) => {
     await Meteor.callAsync('reset');
+
+    let sub;
+    const comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
+    })
 
     try {
       const initialThings = Things.find().fetch();
@@ -371,10 +484,18 @@ if (Meteor.isClient) {
     } catch(error) {
       test.isTrue(error = undefined);
     }
+
+    sub.stop();
+    comp.stop();
   });
 
   Tinytest.addAsync('update - upsert multi', async (test) => {
     await Meteor.callAsync('reset');
+
+    let sub;
+    const comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
+    })
 
     try {
       await Meteor.applyAsync('insertThing', [{ text: 'hi', num: 10 }])
@@ -384,10 +505,18 @@ if (Meteor.isClient) {
     } catch(error) {
       test.isTrue(error = undefined);
     }
+
+    sub.stop();
+    comp.stop();
   });
 
   Tinytest.addAsync('upsert - simple', async (test) => {
     await Meteor.callAsync('reset');
+
+    let sub;
+    const comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
+    })
 
     try {
       const initialThings = Things.find().fetch();
@@ -398,10 +527,18 @@ if (Meteor.isClient) {
     } catch(error) {
       test.isTrue(error = undefined);
     }
+
+    sub.stop();
+    comp.stop();
   });
 
   Tinytest.addAsync('remove - simple', async (test) => {
     await Meteor.callAsync('reset');
+
+    let sub;
+    const comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
+    })
 
     try {
       const result = await Meteor.callAsync('removeThing', {text: 'hi'});
@@ -413,10 +550,18 @@ if (Meteor.isClient) {
     } catch(error) {
       test.isTrue(error = undefined);
     }
+
+    sub.stop();
+    comp.stop();
   });
 
   Tinytest.addAsync('remove - shorthand _id', async (test) => {
     await Meteor.callAsync('reset');
+
+    let sub;
+    const comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
+    })
 
     try {
       const thing = Things.findOne();
@@ -431,10 +576,18 @@ if (Meteor.isClient) {
     } catch(error) {
       test.isTrue(error = undefined);
     }
+
+    sub.stop();
+    comp.stop();
   });
 
   Tinytest.addAsync('remove - _id', async (test) => {
     await Meteor.callAsync('reset');
+
+    let sub;
+    const comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
+    })
 
     try {
       const thing = Things.findOne();
@@ -449,10 +602,18 @@ if (Meteor.isClient) {
     } catch(error) {
       test.isTrue(error = undefined);
     }
+
+    sub.stop();
+    comp.stop();
   });
 
   Tinytest.addAsync('remove - $eq', async (test) => {
     await Meteor.callAsync('reset');
+
+    let sub;
+    const comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
+    })
 
     try {
       const thing = Things.findOne();
@@ -466,10 +627,18 @@ if (Meteor.isClient) {
     } catch(error) {
       test.isTrue(error = undefined);
     }
+
+    sub.stop();
+    comp.stop();
   });
 
   Tinytest.addAsync('remove - $in', async (test) => {
     await Meteor.callAsync('reset');
+
+    let sub;
+    const comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
+    })
 
     try {
       const currentThings = Things.find().fetch();
@@ -481,10 +650,18 @@ if (Meteor.isClient) {
     } catch(error) {
       test.isTrue(error = undefined);
     }
+
+    sub.stop();
+    comp.stop();
   });
 
   Tinytest.addAsync('remove - $nin', async (test) => {
     await Meteor.callAsync('reset');
+
+    let sub;
+    const comp = Tracker.autorun(() => {
+      sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
+    })
 
     try {
       const currentThings = Things.find().fetch();
@@ -496,6 +673,9 @@ if (Meteor.isClient) {
     } catch(error) {
       test.isTrue(error = undefined);
     }
+
+    sub.stop();
+    comp.stop();
   });
 
   Tinytest.addAsync('cache - .once - set to false', async (test) => {
@@ -591,19 +771,23 @@ if (Meteor.isClient) {
     await Meteor.callAsync('reset')
 
     let sub;
-    Tracker.autorun(() => {
+    const comp = Tracker.autorun(() => {
       sub = Meteor.subscribe('things.all', {cacheDuration: 0.1});
     })
 
     let things;
-    Tracker.autorun(() => {
+    const comp2 = Tracker.autorun(() => {
       if (sub.ready()) {
         things = Things.find().fetch();
       }
     });
 
     await wait(100);
-    test.isTrue(things.length, 2)
+    test.isTrue(things.length, 2);
+
+    sub.stop();
+    comp.stop();
+    comp2.stop();
   });
 
   Tinytest.addAsync('subscribe - .once - multiple collections successful', async (test) => {
@@ -1755,6 +1939,89 @@ if (Meteor.isServer) {
     test.equal(resultComplex['user.address.city'].$in[1] instanceof ObjectId, true, 'Should convert ObjectId inside $in array');
     test.equal(resultComplex['user.age'].$gt, 25, 'Should retain $gt value');
     test.equal(resultComplex['user.name'], 'John', 'Should retain regular field value');
+  });
+
+
+
+  Tinytest.add('createProjection - handles $set modifier', function (test) {
+    const modifier = { $set: { 'user.name': 'Alice', 'user.age': 30 } };
+    const { projection } = createProjection(modifier);
+    test.equal(projection, { user: 1 });
+  });
+
+  Tinytest.add('createProjection - handles $unset modifier', function (test) {
+    const modifier = { $unset: { 'profile.bio': '', 'profile.avatar': '' } };
+    const { projection, unsets } = createProjection(modifier);
+
+    test.equal(projection, { profile: 1 });
+    test.equal(unsets.length, 2);
+  });
+
+  Tinytest.add('createProjection - handles top-level fields', function (test) {
+    const modifier = { username: 'bob', email: 'bob@example.com' };
+    const { projection } = createProjection(modifier);
+    test.equal(projection, { username: 1, email: 1 });
+  });
+
+  Tinytest.add('createProjection - handles mixed modifier and direct fields', function (test) {
+    const modifier = {
+      $set: { 'details.address': '123 St' },
+      name: 'Charlie'
+    };
+    const { projection } = createProjection(modifier);
+    test.equal(projection, { details: 1, name: 1 });
+  });
+
+  Tinytest.add('createProjection - handles empty modifier', function (test) {
+    const modifier = {};
+    const { projection } = createProjection(modifier);
+    test.equal(projection, {});
+  });
+
+  Tinytest.add('createProjection - handles nested fields in multiple operators', function (test) {
+    const modifier = {
+      $set: { 'user.profile.name': 'Alice' },
+      $unset: { 'user.settings.theme': '' },
+      $inc: { 'user.stats.logins': 1 }
+    };
+    const { projection } = createProjection(modifier);
+    test.equal(projection, { user: 1 });
+  });
+
+  Tinytest.add('createProjection - handles duplicate top-level keys', function (test) {
+    const modifier = {
+      $set: { 'user.name': 'Alice' },
+      $unset: { 'user.age': '' },
+      user: 'rawValue'
+    };
+    const { projection } = createProjection(modifier);
+    test.equal(projection, { user: 1 }); // No duplication, still top-level
+  });
+
+  Tinytest.add('createProjection - ignores nested subfields beyond top-level', function (test) {
+    const modifier = {
+      $set: { 'a.b.c.d': 'deep', 'a.e': 'less deep' }
+    };
+    const { projection } = createProjection(modifier);
+    test.equal(projection, { a: 1 });
+  });
+
+  Tinytest.add('createProjection - handles unknown operators gracefully', function (test) {
+    const modifier = {
+      $customOp: { 'meta.info': 'data' },
+      metadata: 'inline'
+    };
+    const { projection } = createProjection(modifier);
+    test.equal(projection, { meta: 1, metadata: 1 });
+  });
+
+  Tinytest.add('createProjection - handles conflicting direct field and operator field', function (test) {
+    const modifier = {
+      $set: { 'item.price': 100 },
+      item: { name: 'Widget' }
+    };
+    const { projection } = createProjection(modifier);
+    test.equal(projection, { item: 1 });
   });
 }
 
