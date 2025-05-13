@@ -27,6 +27,9 @@ const Notes = new Mongo.Collection('notes');
 const Items = new Mongo.Collection('items');
 const Books = new Mongo.Collection('books');
 const Dogs = new Mongo.Collection('dogs');
+const Cats = new Mongo.Collection('cats', {
+  idGeneration: 'MONGO' // Mongo.ObjectID
+});
 const Markers = new Mongo.Collection('markers', {
   idGeneration: 'MONGO' // Mongo.ObjectID
 });
@@ -69,6 +72,17 @@ const resetMarkers = async () => {
 
 const resetDogs = async () => {
   await Dogs.removeAsync({});
+  return;
+}
+
+const resetCats = async () => {
+  await Cats.removeAsync({});
+  await Cats.insertAsync({ name: 'fluffy', something: new Mongo.ObjectID('123456789012345678901234') });
+  await Cats.insertAsync({ name: 'Phantom', something: new Mongo.ObjectID('123456789012345678901234') });
+  await Cats.insertAsync({
+    name: 'Mittens',
+    something: new Mongo.ObjectID('012341234567890123456789'),
+  });
   return;
 }
 
@@ -148,6 +162,10 @@ const insertDog = async ({ text }) => {
   return Dogs.insertAsync({ text, ...(Meteor.isServer && { something: 1 }) });
 }
 
+const insertCat = async ({ name, id }) => {
+  return Cats.insertAsync({ name, something: id });
+}
+
 const updateDog = async ({ _id, text }) => {
   return Dogs.updateAsync({ _id }, { $set: { text, ...(Meteor.isServer && { something: 2 }) }});
 }
@@ -168,6 +186,7 @@ if (Meteor.isServer) {
     await resetBooks();
     await resetMarkers();
     await resetDogs();
+    await resetCats();
   })
 
   Meteor.publish('notes.all', function() {
@@ -218,11 +237,15 @@ if (Meteor.isServer) {
     return Dogs.find({}, { fields: { text: 1 }});
   });
 
-  Meteor.methods({ reset, resetNotes, resetItems, resetBooks, resetMarkers, resetDogs, updateThing, updateThingWithUnset, updateThings, updateThingsWithUnset, updateThingUpsert, updateThingUpsertMulti, upsertThing, replaceThing, removeThing, fetchThings, updateItem, fetchItems })
+  Meteor.publish.stream('cats.stream.something', function(filterObjectId) {
+    return Cats.find({something: filterObjectId}, { fields: { name: 1, something: 1 }});
+  });
+
+  Meteor.methods({ reset, resetNotes, resetItems, resetBooks, resetMarkers, resetDogs, resetCats, updateThing, updateThingWithUnset, updateThings, updateThingsWithUnset, updateThingUpsert, updateThingUpsertMulti, upsertThing, replaceThing, removeThing, fetchThings, updateItem, fetchItems })
 }
 
 // isomorphic methods
-Meteor.methods({ insertThing, insertItem, insertBook, insertMarker, updateMarker, updateMarkers, insertDog, updateDog, replaceDog, removeDog });
+Meteor.methods({ insertThing, insertItem, insertBook, insertMarker, updateMarker, updateMarkers, insertDog, updateDog, insertCat, replaceDog, removeDog });
 
 
 function createConnection() {
@@ -1068,6 +1091,38 @@ if (Meteor.isClient) {
     test.equal(markers.filter(m => m.text === 'hello').length, 2)
     computation.stop();
   });
+
+   Tinytest.addAsync(
+     'subscribe - .stream - successful with Mongo.ObjectID as a filter',
+     async (test) => {
+       await Meteor.callAsync('resetCats');
+
+       let sub;
+       Tracker.autorun(() => {
+         sub = Meteor.subscribe('cats.stream.something', new Mongo.ObjectID('123456789012345678901234'), { cacheDuration: 0.1 });
+       });
+
+       let cats;
+       const computation = Tracker.autorun(() => {
+         if (sub.ready()) {
+           cats = Cats.find().fetch();
+           sub.stop();
+         }
+       });
+
+      
+
+       await wait(101);
+        console.log('cats', cats);
+       test.equal(cats.length, 2);
+
+       await Meteor.callAsync('insertCat', { name: 'sup', id: new Mongo.ObjectID('123456789012345678901234') });
+       await wait(100);
+       test.equal(cats.length, 3);
+
+       computation.stop();
+     }
+   );
 
 
   Tinytest.addAsync('cache - regular pubsub -  successful', async (test) => {
