@@ -4,7 +4,7 @@ import { Mongo, MongoInternals } from 'meteor/mongo';
 import { MongoID } from 'meteor/mongo-id';
 import { DDP } from 'meteor/ddp-client';
 import { Tracker } from 'meteor/tracker';
-import { extractSubscribeArguments } from './lib/utils/client';
+import { merge, extractSubscribeArguments } from './lib/utils/client';
 import { convertFilter, removeValue, trim, matchesFilter, convertObjectId, createProjection } from './lib/utils/server';
 import { createKey } from './lib/utils/shared';
 import { subsCache } from './lib/subs-cache';
@@ -14,6 +14,7 @@ const { ObjectId } = MongoInternals?.NpmModules.mongodb.module || {};
 
 const Cache = Meteor.isServer && require('./lib/cache').Cache || {}
 
+const _merge = require('lodash/merge');
 const _isEqual = require('lodash/isEqual');
 
 PubSub.configure({
@@ -2078,6 +2079,51 @@ if (Meteor.isServer) {
     const { projection } = createProjection(modifier);
     test.equal(projection, { item: 1 });
   });
+
+  Tinytest.addAsync('merge', async (test) => {
+    const subs = Symbol('subs');
+    const now = new Date();
+
+    const d1 = new Date('2025-05-19');
+    const d2 = new Date('2025-05-20');
+    const d3 = new Date('2025-05-21');
+
+    const obj1 = {
+      [subs]: new Set(['1']),
+      a: 1,
+      b: {
+        f: [
+          { g: 4 }
+        ]
+      },
+      c: [
+        { d: 2, date: d1 },
+        { e: 3, date: d2 }
+      ],
+      g: [1, 2],
+      createdAt: now
+    };
+
+    const obj2 = {
+      b: {
+        f: [
+          { i: 6 }
+        ]
+      },
+      c: [
+        { h: 5, date: d3 }
+      ],
+      g: [2, 3, 4],
+      j: [
+        { k: 7 }
+      ]
+    };
+
+    const lodashMerged = _merge(obj1, obj2);
+    const merged = merge(obj1, obj2);
+
+    test.equal(_isEqual(lodashMerged, merged), true);
+  })
 }
 
 Tinytest.addAsync('subscribe - .once - current user is not removed', async (test) => {
