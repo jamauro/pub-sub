@@ -1,3 +1,6 @@
+## 0.5.1
+* fix: `.once` - merge bug when merging into minimongo
+
 ## 0.5.0
 * feat: improved `.updateAsync` to send less data over the wire
 
