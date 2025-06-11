@@ -424,3 +424,7 @@ PubSub.configure({
   // ... change the defaults here ... //
 });
 ```
+
+## Support
+
+If you find this package valuable, I hope you'll consider [supporting](https://github.com/sponsors/jamauro) it. :) Maybe you pass on the cost to your client(s) or factor in the time it saved you and your team.
